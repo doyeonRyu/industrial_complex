@@ -9,9 +9,9 @@ Last Modified: 2025-10-13
 Description: 데이터 로드 및 병합 스크립트
     - 한 파일의 여러 테이블에서 15분 단위 시계열 데이터를 추출해 병합
     - 여러 파일을 순회하며 통합하고 CSV로 저장
-    - 한 산업 단지씩 실행
+    - 한 기업씩 실행
 
-    - 산업 단지명 변경할 경우 
+    - 기업명 변경할 경우
         - **base_dir**과 **output_csv**만 바꿔서 그대로 사용 가능
         - 추가로 기간/키워드/확장자/정규식 등의 파라미터도 필요 시 조정
 ==============================================================================
@@ -206,11 +206,11 @@ def collect_quarterhour_data(
 ):
     """
     Function: collect_quarterhour_data
-        - 특정 산업단지 폴더(base_dir) 아래에서 월별 하위폴더(YYYY.MM)를 순회하며,
+        - 특정 기업 폴더(base_dir) 아래에서 월별 하위폴더(YYYY.MM)를 순회하며,
           파일명에 날짜가 포함된 원시 파일을 읽어 15분 단위 시계열로 통합하고 CSV로 저장
     Parameters:
         - base_dir: str
-            - 산업단지 루트 경로 (예: "C:/.../data/raw/9.광명금속")
+            - 기업 루트 경로 (예: "C:/.../data/raw/9.광명금속")
         - start_ym: str
             - 시작 "YYYY.MM" (예: "2024.08")
         - end_ym: str
@@ -320,10 +320,10 @@ def collect_quarterhour_data(
 # 메인 실행 블록
 if __name__ == "__main__":
     """
-    - 다른 산업단지에도 **base_dir**와 **output_csv**만 바꿔서 그대로 사용 가능
+    - 다른 기업에도 **base_dir**와 **output_csv**만 바꿔서 그대로 사용 가능
     - 기간/키워드/확장자/정규식 등의 파라미터도 필요 시 조정
     """
-    # 산업단지 루트 경로
+    # 기업 루트 경로
     base_dir = "C:/Users/ryudo/Desktop/forecasting_models/industrial_complex/data/raw/9.광명금속"
     start_ym = "2024.08"
     end_ym = "2025.09"
@@ -345,6 +345,6 @@ if __name__ == "__main__":
             ('역률 (%)', '지상'),
             ('역률 (%)', '진상')
         ],
-        output_csv=f"../../processed/광명금속_통합_시계열_데이터({start_ym}_{end_ym}).csv",
+        output_csv=f"../../processed/광명금속_시계열_데이터({start_ym}_{end_ym}).csv",
         output_encoding="utf-8-sig"
     )
