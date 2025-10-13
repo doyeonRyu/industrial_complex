@@ -1,3 +1,4 @@
 /data/processed/
 /data/raw/
 /data/unfinished/
+__pycache__/
