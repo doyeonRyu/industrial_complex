@@ -370,6 +370,10 @@ def train_model(path, input_window, output_window,
     path_name = os.path.basename(os.path.normpath(path))  # 예: "광명금속"
 
     best_loss = float('inf')
+
+    # 모델 저장 경로
+    #    input, output_window가 달라지면 가장 뒤에 _(input, output)_ 추가
+    #    default: input_window=10, output_window=1
     if model1 is not None: 
         best_model1_path = f'results/{path_name}_hybrid_{model1.__class__.__name__}_with_{model2.__class__.__name__}.pth'
         best_model2_path = f'results/{path_name}_hybrid_{model2.__class__.__name__}.pth'
@@ -405,12 +409,12 @@ def train_model(path, input_window, output_window,
 # main 실행 블록
 if __name__ == "__main__":
     path = "data/광명금속/"
-    path_name = os.path.basename(os.path.normpath(path))  # 예: "광명금속"
-    input_window = 10
-    output_window = 1
+    path_name = os.path.basename(os.path.normpath(path)) # 예: "광명금속"
+    input_window = 10 # 15분 단위, 24 = 6시간
+    output_window = 1 # 15분 단위, 24 = 6시간
     model1 = None # "CNN" or None
     model2 = "Transformer" # "LSTM" or "Transformer"
-    num_epochs = 10
+    num_epochs = 500
     criterion = nn.HuberLoss(delta=1.0, reduction="mean") # Huber Loss
     optimizer_type = "Adam" # "Adam", "SGD", "RMSprop"
 
