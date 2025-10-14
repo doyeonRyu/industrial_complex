@@ -1,3 +1,20 @@
+"""
+==============================================================================
+File: setup.py
+Project: 산업 단지 전력 사용량 예측 모델
+Author: 유도연
+Created Date: 2025-10-14
+Last Modified: 2025-10-14
+
+Description: 모델 설정 및 데이터셋 클래스
+    Functions:
+        - _to_device: DataLoader에서 가져온 배치를 장치에 맞게 변환
+        - SeqDataset: 시계열 데이터셋 클래스
+Note
+    - train_model.py에서 실행
+    - CNN + LSTM / CNN + Transformer / LSTM 단독 / Transformer 단독 (추가 가능)
+==============================================================================
+"""
 import torch
 import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader

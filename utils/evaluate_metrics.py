@@ -1,3 +1,22 @@
+"""
+==============================================================================
+File: evaluate_metrics.py
+Project: 산업 단지 전력 사용량 예측 모델
+Author: 유도연
+Created Date: 2025-10-14
+Last Modified: 2025-10-14
+
+Description: 모델 평가 및 지표 계산
+    Functions:
+        - evaluate: 검증 또는 테스트 데이터셋에 대한 손실 계산
+        - metrics: MAE, RMSE, MAPE, R² 지표 계산
+Note
+    - train_model.py에서 실행
+    - CNN + LSTM / CNN + Transformer / LSTM 단독 / Transformer 단독 (추가 가능)
+    - 산업체마다 데이터 특성이 다를 수 있음. 수정 필요 - 현재는 광명금속의 포멧을 따름
+==============================================================================
+"""
+
 import torch
 import torch.nn as nn
 import numpy as np
@@ -12,7 +31,7 @@ from utils.setup import _to_device
 def evaluate(loader, model1, model2, criterion, device):
     """
     Function: evaluate
-        - CNN + LSTM 모델을 검증 모드로 한 epoch 평가
+        - 하이브리드 혹은 단일 예측 모델을 검증 모드로 한 epoch 평가
     Parameters:
         - loader: DataLoader, 평가할 데이터 로더
         - model1: CNN 모델

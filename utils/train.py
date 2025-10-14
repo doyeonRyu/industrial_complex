@@ -1,3 +1,19 @@
+"""
+==============================================================================
+File: train.py
+Project: 산업 단지 전력 사용량 예측 모델
+Author: 유도연
+Created Date: 2025-10-14
+Last Modified: 2025-10-14
+
+Description: 하이브리드 혹은 단일 모델 학습
+    Functions:
+        - train: 한 epoch 동안 모델 학습
+Note
+    - train_model.py에서 실행
+    - CNN + LSTM / CNN + Transformer / LSTM 단독 / Transformer 단독 (추가 가능)
+==============================================================================
+"""
 import torch
 import torch.nn as nn
 from utils.setup import _to_device
