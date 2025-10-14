@@ -4,3 +4,6 @@
 __pycache__/
 data_preprocessing.ipynb
 *.ipynb
+data/광명금속
+plots/광명금속
+

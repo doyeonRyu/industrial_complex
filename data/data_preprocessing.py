@@ -121,9 +121,9 @@ def data_inspection(industry_name: str, data: pd.DataFrame):
     data.drop(columns=['month'], inplace=True)
 
     # 2-3) 각 변수별 사용량과의 상관관계 산점도
-    plt.figure(figsize=(15, 10))
+    plt.figure(figsize=(10, 6))
     for i, col in enumerate(feature_cols):
-        plt.subplot(3, 3, i + 1)
+        plt.subplot(3, 2, i + 1)
         sns.scatterplot(data=data, x=col, y='usage_kWh')
         plt.title(f'Usage vs {col}')
         plt.xlabel(col)
@@ -133,10 +133,11 @@ def data_inspection(industry_name: str, data: pd.DataFrame):
     plt.savefig(f'../plots/{industry_name}/[{industry_name}] features_usage_scatter_plot.png')
 
     # 2-4) 각 변수별 사용량과의 상관관계 히트맵
-    plt.figure(figsize=(10, 8))
+    plt.figure(figsize=(10, 10))
     corr = data.corr()
     sns.heatmap(corr, annot=True, fmt=".2f", cmap='coolwarm', vmin=-1, vmax=1)
     plt.title('Correlation Matrix')
+    plt.tight_layout()
     # plt.show() # 주석 처리 - 노트북에서 실행 시 사용
     plt.savefig(f'../plots/{industry_name}/[{industry_name}] correlation_matrix.png')
 
@@ -277,12 +278,12 @@ def data_preprocessing(industry_name: str, data: pd.DataFrame):
     # y_xx_scaled: 추후 역변환 시 사용
 
     # Min-Max scaling
-    train_minmax_y, y_minmax_scaled = train_scaler_fit_transform(train_y, MinMaxscaler)
+    train_minmax_y, y_minmax_scaler = train_scaler_fit_transform(train_y, MinMaxscaler)
     valid_minmax_y = valid_test_scaler_transform(valid_y, MinMaxscaler)
     test_minmax_y = valid_test_scaler_transform(test_y, MinMaxscaler)
 
     # z-score standardization
-    train_scaled_y, y_standard_scaled = train_scaler_fit_transform(train_minmax_y, Standardscaler)
+    train_scaled_y, y_standard_scaler = train_scaler_fit_transform(train_minmax_y, Standardscaler)
     valid_scaled_y = valid_test_scaler_transform(valid_minmax_y, Standardscaler)
     test_scaled_y  = valid_test_scaler_transform(test_minmax_y, Standardscaler)
 
@@ -311,8 +312,8 @@ def data_preprocessing(industry_name: str, data: pd.DataFrame):
     import joblib
     joblib.dump(minmax_scaler, f'{industry_name}/{industry_name}_minmax_scaler.pkl')
     joblib.dump(standard_scaler, f'{industry_name}/{industry_name}_standard_scaler.pkl')
-    joblib.dump(y_minmax_scaled, f'{industry_name}/{industry_name}_y_minmax_scaler.pkl')
-    joblib.dump(y_standard_scaled, f'{industry_name}/{industry_name}_y_standard_scaler.pkl')
+    joblib.dump(y_minmax_scaler, f'{industry_name}/{industry_name}_y_minmax_scaler.pkl')
+    joblib.dump(y_standard_scaler, f'{industry_name}/{industry_name}_y_standard_scaler.pkl')
 
     print(f"[{industry_name}] Data preprocessing completed and saved.\n")
 

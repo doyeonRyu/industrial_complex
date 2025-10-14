@@ -174,9 +174,9 @@ Transformer 모델
         - B: 배치 크기 | output_window: 예측 변수 수
 ==============================================================================
 """
-class TimeSeriesTransformer(nn.Module):
+class Transformer(nn.Module):
     """
-    Class: TimeSeriesTransformer
+    Class: Transformer
         - Transformer encoder 기반 시계열 데이터 예측 모델
         - 실수 시계열 입력(F)을 d_model 차원으로 임베딩(위치 인코딩 포함)한 뒤 
             Transformer Encoder를 통과시켜, 풀링된 대표 벡터로 다단계 에측을 수행하는 인코더 기반 모델
@@ -301,7 +301,7 @@ class TimeSeriesTransformer(nn.Module):
         src_key_padding_mask = pad_mask if (self.use_pad_mask and pad_mask is not None) else None
 
         # 3) Transformer Encoder 통과
-        h = self.encoder(h, src_mask=src_mask, src_key_padding_mask=src_key_padding_mask) # (B, L, d_model) 인코더 통과 (현재 마스크 미적용)
+        h = self.encoder(h, mask=src_mask, src_key_padding_mask=src_key_padding_mask) # (B, L, d_model) 인코더 통과 (현재 마스크 미적용)
 
         # 4) 대표 벡터 추출
         if self.pool == "last":
