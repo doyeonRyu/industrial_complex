@@ -2,3 +2,5 @@
 /data/raw/
 /data/unfinished/
 __pycache__/
+data_preprocessing.ipynb
+*.ipynb
