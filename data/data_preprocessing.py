@@ -29,10 +29,24 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 import os
+import sys
 
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.preprocessing import StandardScaler
 
+class DualLogger:
+    def __init__(self, filename):
+        self.terminal = sys.stdout                     # 원래 콘솔 출력 저장
+        self.log = open(filename, "w", encoding="utf-8")  # 로그 파일 열기
+
+    def write(self, message):
+        self.terminal.write(message)   # 터미널에도 출력
+        self.log.write(message)        # 파일에도 기록
+
+    def flush(self):
+        # 버퍼링 방지 (필수)
+        self.terminal.flush()
+        self.log.flush()
 
 # 데이터 시각화 및 탐색 함수
 def data_inspection(industry_name: str, data: pd.DataFrame):
@@ -51,6 +65,7 @@ def data_inspection(industry_name: str, data: pd.DataFrame):
     Returns:
         - data: 전처리된 데이터프레임
     """
+
     # 데이터 불러오기 
     if not data.endswith('.csv'): # 만약 뒤에 .csv가 붙어있지 않으면 자동으로 붙여줌
         data = data + '.csv'
@@ -75,6 +90,9 @@ def data_inspection(industry_name: str, data: pd.DataFrame):
     print(data.columns, "-> (컬럼명 변경) \n")
     #    컬럼 영어로 변경
     data.columns = ['datetime', 'usage_kWh', 'max_demand_kW', 'reactive_usage_kWh_kVarh_inductive', 'reactive_usage_kWh_kVarh_capacitive', 'CO2_tCO2', 'usage_kWh_factor_inductive', 'usage_kWh_factor_capacitive']
+    
+    # 상관관계가 0.35 이하인 컬럼 drop
+    # data = data.drop(columns=['reactive_usage_kWh_kVarh_capacitive', 'usage_kWh_factor_capacitive'])
     print(data.columns, "\n")
 
     # 2) 변수별 시각화
@@ -165,26 +183,147 @@ def data_preprocessing(industry_name: str, data: pd.DataFrame):
     print(f"[{industry_name}] Data preprocessing process...\n")
     
     # 3) Train / Valid / Test 분할
-    def split_train_val_test(data=data, train_ratio=0.7, val_ratio=0.15):    
-        train_data = pd.DataFrame()
-        val_data = pd.DataFrame()
-        test_data = pd.DataFrame()
+    # def split_train_val_test(data=data, train_ratio=0.7, val_ratio=0.15):    
+    #     train_data = pd.DataFrame()
+    #     val_data = pd.DataFrame()
+    #     test_data = pd.DataFrame()
 
-        total_len = len(data)
-        train_end = int(total_len * train_ratio)
-        val_end = int(total_len * (train_ratio + val_ratio))
+    #     total_len = len(data)
+    #     train_end = int(total_len * train_ratio)
+    #     val_end = int(total_len * (train_ratio + val_ratio))
 
-        train_data = pd.concat([train_data, data.iloc[:train_end]])
-        val_data = pd.concat([val_data, data.iloc[train_end:val_end]])
-        test_data = pd.concat([test_data, data.iloc[val_end:]])
+    #     train_data = pd.concat([train_data, data.iloc[:train_end]])
+    #     val_data = pd.concat([val_data, data.iloc[train_end:val_end]])
+    #     test_data = pd.concat([test_data, data.iloc[val_end:]])
 
-        # 인덱스 재설정
-        train_data = train_data.reset_index(drop=True)
-        val_data = val_data.reset_index(drop=True)
-        test_data = test_data.reset_index(drop=True)
+    #     # 인덱스 재설정
+    #     train_data = train_data.reset_index(drop=True)
+    #     val_data = val_data.reset_index(drop=True)
+    #     test_data = test_data.reset_index(drop=True)
 
-        return train_data, val_data, test_data
+    #     return train_data, val_data, test_data
     
+    # train, valid, test = split_train_val_test(data)
+
+
+    def split_train_val_test(data: pd.DataFrame, train_ratio: float = 0.7, valid_ratio: float = 0.15, gap_weeks: int = 0):
+        '''
+        Function: split_train_val_test
+            - 시계열 데이터를 "주 단위(월 00:00 ~ 일 23:45)"로 정렬하여
+            train/valid/test 세 구간으로 분할하는 함수
+            - 각 구간 사이에 gap_weeks(기본 1주)만큼의 비어 있는 구간을 둠
+            - 분할 비율은 "주(week) 개수"를 기준으로 계산함
+        Parameters:
+            - data: pd.DataFrame
+                - 'datetime' 컬럼을 포함한 시계열 데이터프레임 (정렬은 함수에서 수행)
+            - train_ratio: float
+                - 학습 구간 비율 (기본 0.7)
+            - valid_ratio: float
+                - 검증 구간 비율 (기본 0.15)
+            - gap_weeks: int
+                - train -> valid, valid -> test 사이에 비울 주(week) 수 (기본 1, 0으로 두면 gap 없이 연속 분할)
+        Returns:
+            - (train_df, valid_df, test_df): tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]
+                - 각 구간에 해당하는 데이터프레임 3개를 순서대로 반환
+        '''
+
+        # 1. 기본 정리: 시간 변환 및 정렬
+        df = data.copy()
+        df['datetime'] = pd.to_datetime(df['datetime'])
+        df = df.sort_values('datetime').reset_index(drop=True)
+
+        # 2. 보조 함수: 주의 시작(월 00:00)과 주의 끝(일 23:45) 계산
+        def next_monday_0000(ts: pd.Timestamp) -> pd.Timestamp:
+            # 주 시작을 월요일 00:00으로 정렬
+            base = ts.normalize()
+            return base if base.weekday() == 0 else (base + pd.offsets.Week(weekday=0))
+
+        def this_week_sun_2345(ts: pd.Timestamp) -> pd.Timestamp:
+            # 같은 주의 일요일 23:45 반환 (15분 간격 가정)
+            return ts.normalize() + pd.Timedelta(days=(6 - ts.weekday())) + pd.Timedelta(hours=23, minutes=45)
+
+        # 3. 전체 기간을 주 단위로 정렬 (월 00:00 ~ 일 23:45)
+        global_start = next_monday_0000(df['datetime'].min())
+        global_end = this_week_sun_2345(df['datetime'].max())
+
+        # 월요일 00:00 기준으로 주 경계 생성 (각 원소는 주의 시작 시각)
+        mondays = pd.date_range(start=global_start, end=global_end, freq='W-MON', inclusive='both')
+
+        # mondays가 최소 1개는 있어야 함. (데이터가 매우 짧을 때 보정)
+        if len(mondays) == 0:
+            mondays = pd.DatetimeIndex([global_start])
+
+        # 각 주의 [start, end] 경계를 리스트로 구성
+        # 주 시작: 해당 Monday 00:00
+        # 주 끝: 해당 주의 Sunday 23:45
+        weeks = []
+        for m in mondays:
+            start_w = m
+            end_w = this_week_sun_2345(m)  # m가 월요일이므로 같은 주 일요일 23:45
+            # 마지막 주가 global_end를 넘어가면 global_end로 클리핑
+            end_w = min(end_w, global_end)
+            weeks.append((start_w, end_w))
+
+        # 유효한 주만 남기기 (시작<=끝)
+        weeks = [(s, e) for s, e in weeks if s <= e]
+        n_weeks = len(weeks)
+        if n_weeks == 0:
+            # 주 단위로 자를 수 없는 경우: 전체를 test로 반환 (혹은 예외 처리)
+            return df.iloc[0:0], df.iloc[0:0], df
+
+        # 4. 비율을 "주 개수"에 적용하여 주 단위로 분할 개수 결정
+        n_train = int(np.floor(n_weeks * train_ratio))
+        n_valid = int(np.floor(n_weeks * valid_ratio))
+
+        # 남은 주 중에서 test 주 개수
+        n_test = n_weeks - n_train - n_valid - (gap_weeks * 2)
+
+        # 5. 주 인덱스 슬라이싱 (train->gap->valid->gap->test)
+        idx = 0
+        train_weeks = weeks[idx : idx + n_train]
+        idx += n_train
+
+        idx += gap_weeks # train과 valid 사이 gap
+        valid_weeks = weeks[idx : idx + n_valid]
+        idx += n_valid
+
+        idx += gap_weeks # valid와 test 사이 gap
+        test_weeks = weeks[idx : idx + n_test]
+
+        # 6. 각 구간의 실제 시간 경계 계산
+        def segment_bounds(week_list):
+            if not week_list:
+                return None, None
+            seg_start = week_list[0][0]
+            seg_end = week_list[-1][1]
+            return seg_start, seg_end
+
+        train_start, train_end = segment_bounds(train_weeks)
+        valid_start, valid_end = segment_bounds(valid_weeks)
+        test_start, test_end = segment_bounds(test_weeks)
+
+        # 7. 데이터프레임 필터링
+        def cut_df_by_time(df_, start_t, end_t):
+            if start_t is None or end_t is None:
+                return df_.iloc[0:0]  # 빈 df
+            m = (df_['datetime'] >= start_t) & (df_['datetime'] <= end_t)
+            return df_.loc[m].copy()
+
+        train_df = cut_df_by_time(df, train_start, train_end)
+        valid_df = cut_df_by_time(df, valid_start, valid_end)
+        test_df  = cut_df_by_time(df, test_start,  test_end)
+
+        # 8. 분할된 시계열 데이터 범위 확인
+        print("Train / Valid / Test Split:")
+        print(f"Train: {len(train_weeks)} | {train_start} - {train_end}")
+        print(f" - Gap weeks between Train/Valid: {gap_weeks}")
+        print(f"Valid: {len(valid_weeks)} | {valid_start} - {valid_end}")
+        print(f" - Gap weeks between Valid/Test: {gap_weeks}")
+        print(f"Test: {len(test_weeks)} | {test_start} - {test_end}")
+        print(f" - Counts(rows): train={len(train_df)}, valid={len(valid_df)}, test={len(test_df)}\n")
+
+        return train_df, valid_df, test_df
+
     train, valid, test = split_train_val_test(data)
 
     # 추후 시각화를 위해 원본 복사
@@ -197,58 +336,72 @@ def data_preprocessing(industry_name: str, data: pd.DataFrame):
     valid_y = pd.DataFrame(valid['usage_kWh'])
     test_y = pd.DataFrame(test['usage_kWh'])
 
-    # 분할된 시계열 데이터 범위 확인
-    def get_date_range(df):
-        date_ranges = {}
-        min_date = pd.to_datetime(df['datetime']).min()
-        max_date = pd.to_datetime(df['datetime']).max()
-        date_ranges = {min_date, max_date}
-        return date_ranges
-
-    print("Train Date:\n", get_date_range(train))
-    print("Validation Date:\n", get_date_range(valid))
-    print("Test Date:\n", get_date_range(test))
-    print("\n")
-    
     # datetime 컬럼 제거
     train = train.drop(columns=["datetime"])
     valid = valid.drop(columns=["datetime"])
     test = test.drop(columns=["datetime"])
+    
+    # 결측치 탐색
+    print("이상치 처리 전 결측치 개수 \n")
+    print("Train Missing Values:\n", train.isnull().sum())
+    print("Validation Missing Values:\n", valid.isnull().sum())
+    print("Test Missing Values:\n", test.isnull().sum())
 
     # 5) 이상치, 결측치 탐색 및 처리
-    # IQR 기법을 이용한 이상치 탐색
-    def detect_outliers_iqr(df):
-        Q1 = df.quantile(0.25)
-        Q3 = df.quantile(0.75)
-        IQR = Q3 - Q1
-        lower_bound = Q1 - 1.5 * IQR
-        upper_bound = Q3 + 1.5 * IQR
-        outliers = ((df < lower_bound) | (df > upper_bound))
-        return outliers
-    
-    train_outliers = detect_outliers_iqr(train)
-    valid_outliers = detect_outliers_iqr(valid)
-    test_outliers = detect_outliers_iqr(test)
-    print("Train Outliers:\n", train_outliers.sum())
-    print("Validation Outliers:\n", valid_outliers.sum())   
-    print("Test Outliers:\n", test_outliers.sum())
-    print("\n")
+    # IQR 이상치 - NaN 대체 
+    def handle_outliers_iqr(df, factor=1.5, df_name="df"):
+        """
+        Function: handle_outliers_iqr
+            1. df의 수치형 컬럼별로 IQR 기반 이상치를 NaN으로 대체
+            2. 이상치 개수를 컬럼별로 출력
+        Parameters:
+            - df: 처리할 DataFrame
+            - factor: IQR 배수 (기본값: 1.5)
+            - df_name: DataFrame 이름 (기본값: "df")
+        Returns:
+            - pd.DataFrame: 이상치가 NaN으로 대체된 DataFrame
+        """
+        df = df.copy()
+        
+        outliers = {} # 전체 컬럼별 이상치 기록
+        numeric_cols = df.select_dtypes(include=[np.number]).columns # 수치형 컬럼만 처리
+        
+        for col in numeric_cols:
+            Q1 = df[col].quantile(0.25) # 1사분위수
+            Q3 = df[col].quantile(0.75) # 3사분위수
+            IQR = Q3 - Q1 # 이상치
+            lower_bound = Q1 - factor * IQR
+            upper_bound = Q3 + factor * IQR
+            
+            # 이상치 인덱스
+            mask = (df[col] < lower_bound) | (df[col] > upper_bound)
+            outliers[col] = df.loc[mask, col]
+            
+            # 이상치를 NaN으로 처리
+            df.loc[mask, col] = np.nan
 
-    # 결측치 탐색
+        # 이상치 개수 출력
+        print(f"{df_name}의 이상치 개수:")
+        for col, series in outliers.items():
+            print(f"{col:<15}: {series.shape[0]}")
+        print("\n")
+        return df
+    train = handle_outliers_iqr(train, df_name="Train")
+    valid = handle_outliers_iqr(valid, df_name="Validation")
+    test = handle_outliers_iqr(test, df_name="Test")
+    
+    print("이상치 결측치로 변환 후 결측치 개수 \n")
     print("Train Missing Values:\n", train.isnull().sum())
     print("Validation Missing Values:\n", valid.isnull().sum())
     print("Test Missing Values:\n", test.isnull().sum())
     print("\n")
 
-    # 이상치 - 생략
-    # 결측치 - 없음
-
     # 6) 정규화, 표준화
-    MinMaxscaler = MinMaxScaler() # 0~1 사이로 정규화
+    MinMaxscaler = MinMaxScaler() # 0-1 사이로 정규화
     Standardscaler = StandardScaler() # 평균 0, 표준편차 1로 표준화
 
     # train_data
-    # fit_transform 모두 
+    #    fit_transform 모두 
     def train_scaler_fit_transform(df, scaler):
         df = df.copy()
         numeric_cols = df.select_dtypes(include=['float64', 'int64']).columns
@@ -256,7 +409,7 @@ def data_preprocessing(industry_name: str, data: pd.DataFrame):
         return df, scaler
 
     # valid / test_data
-    # transform only
+    #    transform only
     def valid_test_scaler_transform(df, scaler):
         df = df.copy()
         numeric_cols = df.select_dtypes(include=['float64', 'int64']).columns
@@ -286,6 +439,8 @@ def data_preprocessing(industry_name: str, data: pd.DataFrame):
     train_scaled_y, y_standard_scaler = train_scaler_fit_transform(train_minmax_y, Standardscaler)
     valid_scaled_y = valid_test_scaler_transform(valid_minmax_y, Standardscaler)
     test_scaled_y  = valid_test_scaler_transform(test_minmax_y, Standardscaler)
+
+    # 로그 변환
 
     # 전처리 완료된 데이터 저장
 
@@ -321,7 +476,15 @@ def data_preprocessing(industry_name: str, data: pd.DataFrame):
 if __name__ == "__main__":
     industry_name = "광명금속"
     data = "광명금속_시계열_데이터(2024.08_2025.09).csv"
+
+    if not os.path.exists(f"{industry_name}"):
+        os.makedirs(f"{industry_name}")
+
+    txt_path = f"{industry_name}/{industry_name}_data_inspection_and_preprocessing_log.txt"
+    sys.stdout = DualLogger(txt_path)  # 로그 파일 경로 설정
+    
     # data inspection
     data = data_inspection(industry_name, data)
+    print("======================================================================\n")
     # data preprocessing
     data_preprocessing(industry_name, data)

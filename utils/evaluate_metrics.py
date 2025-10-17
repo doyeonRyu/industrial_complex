@@ -66,6 +66,12 @@ def evaluate(loader, model1, model2, criterion, device):
             # 2. model2 forward
             yhat = model2(md1_out) # [B, output_window] or [B,] 형태
         else:
+            # 단일 모델: [B, L, F] 보장
+            if xb.dim() == 3 and xb.shape[1] < xb.shape[2]: # [B, F, L]이면
+                xb = xb.permute(0, 2, 1) # -> [B, L, F]
+            elif xb.dim() == 2: # [B, L]이면
+                xb = xb.unsqueeze(-1) # -> [B, L, 1]
+
             yhat = model2(xb)
 
         # 타깃 차원 보정 (1D -> 2D) | [B] vs [B,1] 정렬
@@ -147,6 +153,12 @@ def metrics(best_model1_path, best_model2_path, model1, model2,
                 # 2. model2 forward
                 yhat = model2(md1_out) # [B, output_window] or [B,] 형태
             else:
+                # 단일 모델: [B, L, F] 보장
+                if xb.dim() == 3 and xb.shape[1] < xb.shape[2]: # [B, F, L]이면
+                    xb = xb.permute(0, 2, 1) # -> [B, L, F]
+                elif xb.dim() == 2: # [B, L]이면
+                    xb = xb.unsqueeze(-1) # -> [B, L, 1]
+
                 yhat = model2(xb)
 
             # 타깃 차원 보정 (1D -> 2D) | [B] vs [B,1] 정렬

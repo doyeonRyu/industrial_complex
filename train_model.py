@@ -224,6 +224,7 @@ def build_dataloader(torch_train_x, torch_train_y,
                             num_workers=0, pin_memory=torch.cuda.is_available())
     test_loader  = DataLoader(test_ds,  batch_size=batch_size, shuffle=False,
                             num_workers=0, pin_memory=torch.cuda.is_available())
+    
     return train_loader, valid_loader, test_loader
 
 # 모델 초기화 함수
@@ -326,7 +327,7 @@ def build_model(model1, model2, train_scaled, input_window, output_window, devic
 
 # 모델 훈련 함수
 def train_model(path, input_window, output_window, 
-                criterion, optimizer_type, num_epochs,
+                criterion, optimizer_type, num_epochs, batch_size,
                 model1, model2, device):
     """
     Function: train_model
@@ -357,7 +358,7 @@ def train_model(path, input_window, output_window,
     )
 
     train_loader, valid_loader, _ = build_dataloader(
-        torch_train_x, torch_train_y, torch_valid_x, torch_valid_y, None, None, batch_size=512
+        torch_train_x, torch_train_y, torch_valid_x, torch_valid_y, None, None, batch_size=batch_size
     )
 
     model1, model2 = build_model(model1, model2, train_scaled, input_window, output_window, device)
@@ -374,12 +375,15 @@ def train_model(path, input_window, output_window,
     # 모델 저장 경로
     #    input, output_window가 달라지면 가장 뒤에 _(input, output)_ 추가
     #    default: input_window=10, output_window=1
+    if not os.path.exists(f'results/{path_name}'):
+        os.makedirs(f'results/{path_name}')
+
     if model1 is not None: 
-        best_model1_path = f'results/{path_name}_hybrid_{model1.__class__.__name__}_with_{model2.__class__.__name__}.pth'
-        best_model2_path = f'results/{path_name}_hybrid_{model2.__class__.__name__}.pth'
+        best_model1_path = f'results/{path_name}/{path_name}_hybrid_{model1.__class__.__name__}_with_{model2.__class__.__name__}_({input_window},{output_window}).pth'
+        best_model2_path = f'results/{path_name}/{path_name}_hybrid_{model2.__class__.__name__}_with_{model1.__class__.__name__}_({input_window},{output_window}).pth'
     else:
         best_model1_path = None
-        best_model2_path = f'results/{path_name}_{model2.__class__.__name__}.pth'
+        best_model2_path = f'results/{path_name}/{path_name}_{model2.__class__.__name__}_({input_window},{output_window}).pth'
 
     print("\n======================================================================\n")
     print(f"Training started for {path_name}...\n")
@@ -403,21 +407,25 @@ def train_model(path, input_window, output_window,
             # 4. 출력: train / valid 평균 손실
             print(f"[{path_name}] ({epoch:03d}) train {train_loss:.6f} | valid {overall_loss:.6f}")
 
-    print(f"\nTraining complete. Best valid loss: {best_loss:.6f}\n")
+    if model1 is not None:
+        print(f"\nTraining complete. [{path_name} | {model1.__class__.__name__} + {model2.__class__.__name__} | (input_window={input_window}, output_window={output_window})] Best valid loss: {best_loss:.6f}\n")
+    else:
+        print(f"\nTraining complete. [{path_name} | {model2.__class__.__name__} | (input_window={input_window}, output_window={output_window})] Best valid loss: {best_loss:.6f}\n")
     print("======================================================================\n")
 
 # main 실행 블록
 if __name__ == "__main__":
     path = "data/광명금속/"
     path_name = os.path.basename(os.path.normpath(path)) # 예: "광명금속"
-    input_window = 10 # 15분 단위, 24 = 6시간
-    output_window = 1 # 15분 단위, 24 = 6시간
-    model1 = None # "CNN" or None
-    model2 = "Transformer" # "LSTM" or "Transformer"
+    input_window = 24 # 15분 단위, 24 = 6시간
+    output_window = 24 # 15분 단위, 24 = 6시간
+    model1 = "CNN" # "CNN" or None
+    model2 = "LSTM" # "LSTM" or "Transformer"
     num_epochs = 500
+    batch_size = 512
     criterion = nn.HuberLoss(delta=1.0, reduction="mean") # Huber Loss
     optimizer_type = "Adam" # "Adam", "SGD", "RMSprop"
 
     train_model(path, input_window, output_window, 
-                criterion, optimizer_type, num_epochs, 
+                criterion, optimizer_type, num_epochs, batch_size,
                 model1, model2, device)
