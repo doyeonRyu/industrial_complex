@@ -4,9 +4,6 @@
 __pycache__/
 data_preprocessing.ipynb
 *.ipynb
-data/광명금속
-data/광명금속_v1
-data/금호정밀
 diagnosis_plots/
 적용.docx
 tun_model.py

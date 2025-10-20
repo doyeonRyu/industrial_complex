@@ -1,0 +1,172 @@
+[광명금속] Data inspection process...
+
+Data Head:
+              datetime  사용량 (kWh)  최대수요 (kW)  무효전력 (kVarh)_지상  무효전력 (kVarh)_진상  CO2 (tCO2)  역률 (%)_지상  역률 (%)_진상
+0  2024-08-06 00:15:00       1.16       4.64             0.50              0.0         0.0      91.83      100.0
+1  2024-08-06 00:30:00       1.50       6.00             0.40              0.0         0.0      96.62      100.0
+2  2024-08-06 00:45:00       1.06       4.24             0.44              0.0         0.0      92.36      100.0
+3  2024-08-06 01:00:00       1.04       4.16             0.34              0.0         0.0      95.05      100.0
+4  2024-08-06 01:15:00       1.00       4.00             0.18              0.0         0.0      98.42      100.0 
+
+Data Info:
+<class 'pandas.core.frame.DataFrame'>
+RangeIndex: 40416 entries, 0 to 40415
+Data columns (total 8 columns):
+ #   Column           Non-Null Count  Dtype  
+---  ------           --------------  -----  
+ 0   datetime         40416 non-null  object 
+ 1   사용량 (kWh)        40416 non-null  float64
+ 2   최대수요 (kW)        40416 non-null  float64
+ 3   무효전력 (kVarh)_지상  40416 non-null  float64
+ 4   무효전력 (kVarh)_진상  40416 non-null  float64
+ 5   CO2 (tCO2)       40416 non-null  float64
+ 6   역률 (%)_지상        40416 non-null  float64
+ 7   역률 (%)_진상        40416 non-null  float64
+dtypes: float64(7), object(1)
+memory usage: 2.5+ MB
+None 
+
+Data Describe:
+          사용량 (kWh)     최대수요 (kW)  무효전력 (kVarh)_지상  무효전력 (kVarh)_진상    CO2 (tCO2)     역률 (%)_지상     역률 (%)_진상
+count  40416.000000  40416.000000     40416.000000     40416.000000  40416.000000  40416.000000  40416.000000
+mean       7.866858     31.467433         2.034192         0.021167      0.003049     97.881716     99.903744
+std        9.891586     39.566344         3.966256         0.119009      0.004844      5.331707      3.024379
+min        0.000000      0.000000         0.000000         0.000000      0.000000      0.000000      0.000000
+25%        0.220000      0.880000         0.000000         0.000000      0.000000     98.130000    100.000000
+50%        3.520000     14.080000         0.000000         0.000000      0.000000    100.000000    100.000000
+75%       14.900000     59.600000         2.980000         0.000000      0.010000    100.000000    100.000000
+max       40.300000    161.200000        17.440000         1.300000      0.020000    100.000000    100.000000 
+
+Index(['datetime', '사용량 (kWh)', '최대수요 (kW)', '무효전력 (kVarh)_지상',
+       '무효전력 (kVarh)_진상', 'CO2 (tCO2)', '역률 (%)_지상', '역률 (%)_진상'],
+      dtype='object') -> (컬럼명 변경) 
+
+Index(['datetime', 'usage_kWh', 'max_demand_kW',
+       'reactive_usage_kWh_kVarh_inductive',
+       'reactive_usage_kWh_kVarh_capacitive', 'CO2_tCO2',
+       'usage_kWh_factor_inductive', 'usage_kWh_factor_capacitive'],
+      dtype='object') 
+
+[광명금속] Data inspection completed and plots saved.
+
+======================================================================
+
+[광명금속] Data preprocessing process...
+
+Train / Valid / Test Split:
+Train: 42 | 2024-08-12 00:00:00 - 2025-06-01 23:45:00
+ - Gap weeks between Train/Valid: 0
+Valid: 9 | 2025-06-02 00:00:00 - 2025-08-03 23:45:00
+ - Gap weeks between Valid/Test: 0
+Test: 9 | 2025-08-04 00:00:00 - 2025-10-05 23:45:00
+ - Counts(rows): train=28224, valid=6048, test=5569
+
+이상치 처리 전 결측치 개수 
+
+Train Missing Values:
+ usage_kWh                              0
+max_demand_kW                          0
+reactive_usage_kWh_kVarh_inductive     0
+reactive_usage_kWh_kVarh_capacitive    0
+CO2_tCO2                               0
+usage_kWh_factor_inductive             0
+usage_kWh_factor_capacitive            0
+dtype: int64
+Validation Missing Values:
+ usage_kWh                              0
+max_demand_kW                          0
+reactive_usage_kWh_kVarh_inductive     0
+reactive_usage_kWh_kVarh_capacitive    0
+CO2_tCO2                               0
+usage_kWh_factor_inductive             0
+usage_kWh_factor_capacitive            0
+dtype: int64
+Test Missing Values:
+ usage_kWh                              0
+max_demand_kW                          0
+reactive_usage_kWh_kVarh_inductive     0
+reactive_usage_kWh_kVarh_capacitive    0
+CO2_tCO2                               0
+usage_kWh_factor_inductive             0
+usage_kWh_factor_capacitive            0
+dtype: int64
+Train의 이상치 개수:
+usage_kWh      : 39
+max_demand_kW  : 39
+reactive_usage_kWh_kVarh_inductive: 3099
+reactive_usage_kWh_kVarh_capacitive: 2275
+CO2_tCO2       : 0
+usage_kWh_factor_inductive: 4404
+usage_kWh_factor_capacitive: 1640
+
+
+Validation의 이상치 개수:
+usage_kWh      : 0
+max_demand_kW  : 0
+reactive_usage_kWh_kVarh_inductive: 939
+reactive_usage_kWh_kVarh_capacitive: 391
+CO2_tCO2       : 0
+usage_kWh_factor_inductive: 259
+usage_kWh_factor_capacitive: 63
+
+
+Test의 이상치 개수:
+usage_kWh      : 0
+max_demand_kW  : 0
+reactive_usage_kWh_kVarh_inductive: 780
+reactive_usage_kWh_kVarh_capacitive: 200
+CO2_tCO2       : 0
+usage_kWh_factor_inductive: 183
+usage_kWh_factor_capacitive: 52
+
+
+결측치 보정 작업 후
+
+Train Missing Values:
+ usage_kWh                              0
+max_demand_kW                          0
+reactive_usage_kWh_kVarh_inductive     0
+reactive_usage_kWh_kVarh_capacitive    0
+CO2_tCO2                               0
+usage_kWh_factor_inductive             0
+usage_kWh_factor_capacitive            0
+dtype: int64
+Validation Missing Values:
+ usage_kWh                              0
+max_demand_kW                          0
+reactive_usage_kWh_kVarh_inductive     0
+reactive_usage_kWh_kVarh_capacitive    0
+CO2_tCO2                               0
+usage_kWh_factor_inductive             0
+usage_kWh_factor_capacitive            0
+dtype: int64
+Test Missing Values:
+ usage_kWh                              0
+max_demand_kW                          0
+reactive_usage_kWh_kVarh_inductive     0
+reactive_usage_kWh_kVarh_capacitive    0
+CO2_tCO2                               0
+usage_kWh_factor_inductive             0
+usage_kWh_factor_capacitive            0
+dtype: int64
+
+
+데이터 형태 출력
+
+Train Origin Data Shape: (28224, 8)
+Validation Origin Data Shape: (6048, 8)
+Test Origin Data Shape: (5569, 8)
+
+
+Train Preprocessed Data Shape: (28224, 7)
+Validation Preprocessed Data Shape: (6048, 7)
+Test Preprocessed Data Shape: (5569, 7)
+
+
+Train Preprocessed Y Data Shape: (28224, 1)
+Validation Preprocessed Y Data Shape: (6048, 1)
+Test Preprocessed Y Data Shape: (5569, 1)
+
+
+[광명금속] Data preprocessing completed and saved.
+

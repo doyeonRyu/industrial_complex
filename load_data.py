@@ -305,7 +305,15 @@ def collect_quarterhour_data(
         print(f"\n기간: {final_df['datetime'].min()} ~ {final_df['datetime'].max()}")
 
         # CSV 저장
-        out_path = os.path.join(base_dir, output_csv) if os.path.isdir(base_dir) else output_csv
+        # base_dir의 상위(= raw의 상위 -> data)
+        parent_dir = os.path.dirname(os.path.dirname(base_dir))
+
+        # processed 폴더 경로
+        processed_dir = os.path.join(parent_dir, "preprocessed")
+
+        # 폴더가 없으면 생성
+        os.makedirs(processed_dir, exist_ok=True)
+        out_path = os.path.join(processed_dir, output_csv)
         final_df.to_csv(out_path, index=False, encoding=output_encoding)
         print(f"\n저장 완료: {out_path}")
 
@@ -324,7 +332,7 @@ if __name__ == "__main__":
     - 기간/키워드/확장자/정규식 등의 파라미터도 필요 시 조정
     """
     # 산업체 루트 경로
-    base_dir = "C:/Users/ryudo/Desktop/forecasting_models/industrial_complex/data/raw/9.광명금속"
+    base_dir = "C:/Users/ryudo/Desktop/forecasting_models/industrial_complex/data/raw/9.금호정밀"
     start_ym = "2024.08"
     end_ym = "2025.09"
     # 실행
@@ -345,6 +353,6 @@ if __name__ == "__main__":
             ('역률 (%)', '지상'),
             ('역률 (%)', '진상')
         ],
-        output_csv=f"../../processed/광명금속_시계열_데이터({start_ym}_{end_ym}).csv",
+        output_csv=f"금호정밀_시계열_데이터({start_ym}_{end_ym}).csv",
         output_encoding="utf-8-sig"
     )

@@ -69,7 +69,7 @@ def data_inspection(industry_name: str, data: pd.DataFrame):
     # 데이터 불러오기 
     if not data.endswith('.csv'): # 만약 뒤에 .csv가 붙어있지 않으면 자동으로 붙여줌
         data = data + '.csv'
-    data = pd.read_csv("processed/" + data)
+    data = pd.read_csv("data/preprocessed/" + data)
 
     print(f"[{industry_name}] Data inspection process...\n")
 
@@ -99,10 +99,10 @@ def data_inspection(industry_name: str, data: pd.DataFrame):
     feature_cols = [col for col in data.columns if col != 'datetime' and col != 'usage_kWh']
     
     # df 이름 형태의 폴더 생성 
-    if not os.path.exists('../plots'):
-        os.makedirs('../plots')
-    if not os.path.exists(f'../plots/{industry_name}'):
-        os.makedirs(f'../plots/{industry_name}')
+    if not os.path.exists('plots'):
+        os.makedirs('plots')
+    if not os.path.exists(f'plots/{industry_name}'):
+        os.makedirs(f'plots/{industry_name}')
 
     # 2-1) 요일별 평균 사용량 시각화
 
@@ -118,7 +118,7 @@ def data_inspection(industry_name: str, data: pd.DataFrame):
     plt.xlabel('Day of the Week')
     plt.ylabel('Average Usage (kWh)')
     # plt.show() # 주석 처리 - 노트북에서 실행 시 사용
-    plt.savefig(f'../plots/{industry_name}/[{industry_name}] weekly_mean_usage.png')
+    plt.savefig(f'plots/{industry_name}/[{industry_name}] weekly_mean_usage.png')
     # day_of_week 열 삭제
     data.drop(columns=['day_of_week'], inplace=True)
 
@@ -134,7 +134,7 @@ def data_inspection(industry_name: str, data: pd.DataFrame):
     plt.xlabel('Month')
     plt.ylabel('Average Usage (kWh)')
     # plt.show() # 주석 처리 - 노트북에서 실행 시 사용
-    plt.savefig(f'../plots/{industry_name}/[{industry_name}] monthly_mean_usage.png')
+    plt.savefig(f'plots/{industry_name}/[{industry_name}] monthly_mean_usage.png')
     # month 열 삭제
     data.drop(columns=['month'], inplace=True)
 
@@ -148,7 +148,7 @@ def data_inspection(industry_name: str, data: pd.DataFrame):
         plt.ylabel('Usage (kWh)')
     plt.tight_layout()
     # plt.show() # 주석 처리 - 노트북에서 실행 시 사용
-    plt.savefig(f'../plots/{industry_name}/[{industry_name}] features_usage_scatter_plot.png')
+    plt.savefig(f'plots/{industry_name}/[{industry_name}] features_usage_scatter_plot.png')
 
     # 2-4) 각 변수별 사용량과의 상관관계 히트맵
     plt.figure(figsize=(10, 10))
@@ -157,7 +157,7 @@ def data_inspection(industry_name: str, data: pd.DataFrame):
     plt.title('Correlation Matrix')
     plt.tight_layout()
     # plt.show() # 주석 처리 - 노트북에서 실행 시 사용
-    plt.savefig(f'../plots/{industry_name}/[{industry_name}] correlation_matrix.png')
+    plt.savefig(f'plots/{industry_name}/[{industry_name}] correlation_matrix.png')
 
     print(f"[{industry_name}] Data inspection completed and plots saved.\n")
     return data
@@ -495,30 +495,30 @@ def data_preprocessing(industry_name: str, data: pd.DataFrame):
     print("\n")
 
     # df 이름 형태의 폴더 생성
-    if not os.path.exists(f'{industry_name}'):
-        os.makedirs(f'{industry_name}')
+    if not os.path.exists(f'data/preprocessed/{industry_name}'):
+        os.makedirs(f'data/preprocessed/{industry_name}')
 
     # origin: 원본
-    train_origin.to_csv(f'{industry_name}/{industry_name}_train_origin.csv', index=False)
-    valid_origin.to_csv(f'{industry_name}/{industry_name}_valid_origin.csv', index=False)
-    test_origin.to_csv(f'{industry_name}/{industry_name}_test_origin.csv', index=False)
+    train_origin.to_csv(f'data/preprocessed/{industry_name}/{industry_name}_train_origin.csv', index=False)
+    valid_origin.to_csv(f'data/preprocessed/{industry_name}/{industry_name}_valid_origin.csv', index=False)
+    test_origin.to_csv(f'data/preprocessed/{industry_name}/{industry_name}_test_origin.csv', index=False)
 
     # scaled: 정규화, 표준화 완료
-    train_preprocessed.to_csv(f'{industry_name}/{industry_name}_train_preprocessed.csv', index=False)
-    valid_preprocessed.to_csv(f'{industry_name}/{industry_name}_valid_preprocessed.csv', index=False)
-    test_preprocessed.to_csv(f'{industry_name}/{industry_name}_test_preprocessed.csv', index=False)
+    train_preprocessed.to_csv(f'data/preprocessed/{industry_name}/{industry_name}_train_preprocessed.csv', index=False)
+    valid_preprocessed.to_csv(f'data/preprocessed/{industry_name}/{industry_name}_valid_preprocessed.csv', index=False)
+    test_preprocessed.to_csv(f'data/preprocessed/{industry_name}/{industry_name}_test_preprocessed.csv', index=False)
 
     # y_scaled: target usage_kWh에 대해서도 동일하게 진행
-    train_preprocessed_y.to_csv(f'{industry_name}/{industry_name}_train_preprocessed_y.csv', index=False)
-    valid_preprocessed_y.to_csv(f'{industry_name}/{industry_name}_valid_preprocessed_y.csv', index=False)
-    test_preprocessed_y.to_csv(f'{industry_name}/{industry_name}_test_preprocessed_y.csv', index=False)
+    train_preprocessed_y.to_csv(f'data/preprocessed/{industry_name}/{industry_name}_train_preprocessed_y.csv', index=False)
+    valid_preprocessed_y.to_csv(f'data/preprocessed/{industry_name}/{industry_name}_valid_preprocessed_y.csv', index=False)
+    test_preprocessed_y.to_csv(f'data/preprocessed/{industry_name}/{industry_name}_test_preprocessed_y.csv', index=False)
 
     # 스케일러 객체 저장
     import joblib
-    # joblib.dump(minmax_scaler, f'{industry_name}/{industry_name}_minmax_scaler.pkl')
-    joblib.dump(x_standard_scaler, f'{industry_name}/{industry_name}_standard_scaler.pkl')
-    # joblib.dump(y_minmax_scaler, f'{industry_name}/{industry_name}_y_minmax_scaler.pkl')
-    joblib.dump(y_standard_scaler, f'{industry_name}/{industry_name}_y_standard_scaler.pkl')
+    # joblib.dump(minmax_scaler, f'data/preprocessed/{industry_name}/{industry_name}_minmax_scaler.pkl')
+    joblib.dump(x_standard_scaler, f'data/preprocessed/{industry_name}/{industry_name}_standard_scaler.pkl')
+    # joblib.dump(y_minmax_scaler, f'data/preprocessed/{industry_name}/{industry_name}_y_minmax_scaler.pkl')
+    joblib.dump(y_standard_scaler, f'data/preprocessed/{industry_name}/{industry_name}_y_standard_scaler.pkl')
 
     print(f"[{industry_name}] Data preprocessing completed and saved.\n")
 
@@ -528,12 +528,12 @@ if __name__ == "__main__":
     - 산업체명 변경할 경우 **industry_name**, **data** 변수 수정 필요
     """
     industry_name = "금호정밀"
-    data = "금호정밀_시계열_데이터(2024.08_2025.09).csv"
+    data = f"{industry_name}_시계열_데이터(2024.08_2025.09).csv"
 
-    if not os.path.exists(f"{industry_name}"):
-        os.makedirs(f"{industry_name}")
+    if not os.path.exists(f"data/preprocessed/{industry_name}"):
+        os.makedirs(f"data/preprocessed/{industry_name}")
 
-    txt_path = f"{industry_name}/{industry_name}_data_inspection_and_preprocessing_log.txt"
+    txt_path = f"data/preprocessed/{industry_name}/{industry_name}_data_inspection_and_preprocessing_log.txt"
     sys.stdout = DualLogger(txt_path)  # 로그 파일 경로 설정
     
     # data inspection
