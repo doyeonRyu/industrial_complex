@@ -314,7 +314,7 @@ def data_preprocessing(industry_name: str, data: pd.DataFrame):
         test_df  = cut_df_by_time(df, test_start,  test_end)
 
         # 8. 분할된 시계열 데이터 범위 확인
-        print("Train / Valid / Test Split:")
+        print("[Train / Valid / Test Split]\n")
         print(f"Train: {len(train_weeks)} | {train_start} - {train_end}")
         print(f" - Gap weeks between Train/Valid: {gap_weeks}")
         print(f"Valid: {len(valid_weeks)} | {valid_start} - {valid_end}")
@@ -331,23 +331,29 @@ def data_preprocessing(industry_name: str, data: pd.DataFrame):
     valid_origin = valid.copy()
     test_origin = test.copy()
 
+    # datetime 컬럼 제거
+    train = train.drop(columns=["datetime"])
+    valid = valid.drop(columns=["datetime"])
+    test = test.drop(columns=["datetime"])
+
     # 4) X, y 분리
     train_y = pd.DataFrame(train['usage_kWh'])
     valid_y = pd.DataFrame(valid['usage_kWh'])
     test_y = pd.DataFrame(test['usage_kWh'])
 
-    # datetime 컬럼 제거
-    train = train.drop(columns=["datetime"])
-    valid = valid.drop(columns=["datetime"])
-    test = test.drop(columns=["datetime"])
-    
+    train_x = train.drop(columns=["usage_kWh"])
+    valid_x = valid.drop(columns=["usage_kWh"]) 
+    test_x  = test.drop(columns=["usage_kWh"])
+
+    # 5) 이상치, 결측치 탐색 및 처리
+    print("[이상치 및 결측치 탐색 및 처리]\n")
+
     # 결측치 탐색
     print("이상치 처리 전 결측치 개수 \n")
     print("Train Missing Values:\n", train.isnull().sum())
     print("Validation Missing Values:\n", valid.isnull().sum())
     print("Test Missing Values:\n", test.isnull().sum())
 
-    # 5) 이상치, 결측치 탐색 및 처리
     # IQR 이상치 - NaN 대체 
     def handle_outliers_iqr(df, factor=1.5, df_name="df"):
         """
@@ -386,63 +392,107 @@ def data_preprocessing(industry_name: str, data: pd.DataFrame):
             print(f"{col:<15}: {series.shape[0]}")
         print("\n")
         return df
-    train = handle_outliers_iqr(train, df_name="Train")
-    valid = handle_outliers_iqr(valid, df_name="Validation")
-    test = handle_outliers_iqr(test, df_name="Test")
-    
-    print("이상치 결측치로 변환 후 결측치 개수 \n")
-    print("Train Missing Values:\n", train.isnull().sum())
-    print("Validation Missing Values:\n", valid.isnull().sum())
-    print("Test Missing Values:\n", test.isnull().sum())
+    train_x = handle_outliers_iqr(train_x, df_name="Train_x")
+    valid_x = handle_outliers_iqr(valid_x, df_name="Validation_x")
+    test_x = handle_outliers_iqr(test_x, df_name="Test_x")
+
+    # y는 보통 이상치 처리하지 않음
+
+    # 결측치 처리 
+    # train: 선형 보간 -> 앞뒤 값으로 채우기 -> 남은 결측치는 0으로 채우기
+    train_x = train_x.interpolate(method='linear')
+    train_x = train_x.ffill().bfill()
+    train_x = train_x.fillna(0)
+
+    # train 평균 계산 (결측치 처리 후)
+    train_mean_x = train_x.mean()
+
+    # valid, test: 앞의 값으로만 채우기 -> 남은 결측치는 train 평균값으로 채우기
+    valid_x = valid_x.ffill()
+    valid_x = valid_x.fillna(train_mean_x)
+
+    test_x = test_x.ffill()
+    test_x = test_x.fillna(train_mean_x)
+
+    # y의 결측 처리(있는 경우만. 보통 시계열이면 ffill 권장)
+    train_y = train_y.ffill()
+    valid_y = valid_y.ffill()
+    test_y  = test_y.ffill()
+
+    print("결측치 보정 작업 후\n")
+    print("Train Missing Values:\n", train_x.isnull().sum())
+    print("Validation Missing Values:\n", valid_x.isnull().sum())
+    print("Test Missing Values:\n", test_x.isnull().sum())
     print("\n")
 
-    # 6) 정규화, 표준화
-    MinMaxscaler = MinMaxScaler() # 0-1 사이로 정규화
-    Standardscaler = StandardScaler() # 평균 0, 표준편차 1로 표준화
+    # 6) 로그 변환
+    train_x_logged = np.log1p(train_x)
+    valid_x_logged = np.log1p(valid_x)
+    test_x_logged  = np.log1p(test_x)
 
-    # train_data
-    #    fit_transform 모두 
-    def train_scaler_fit_transform(df, scaler):
-        df = df.copy()
-        numeric_cols = df.select_dtypes(include=['float64', 'int64']).columns
-        df[numeric_cols] = scaler.fit_transform(df[numeric_cols])
-        return df, scaler
+    train_y_log = np.log1p(train_y.clip(lower=0))
+    valid_y_log = np.log1p(valid_y.clip(lower=0))
+    test_y_log  = np.log1p(test_y.clip(lower=0))
 
-    # valid / test_data
-    #    transform only
-    def valid_test_scaler_transform(df, scaler):
-        df = df.copy()
-        numeric_cols = df.select_dtypes(include=['float64', 'int64']).columns
-        df[numeric_cols] = scaler.transform(df[numeric_cols])
-        return df
+    # 7) 정규화, 표준화
+    x_minmax_scaler = MinMaxScaler() # 0-1 사이로 정규화
+    x_standard_scaler = StandardScaler() # 평균 0, 표준편차 1로 표준화
 
-    # Min-Max scaling
-    train_minmax, minmax_scaler = train_scaler_fit_transform(train, MinMaxscaler)
-    valid_minmax = valid_test_scaler_transform(valid, minmax_scaler)
-    test_minmax = valid_test_scaler_transform(test,  minmax_scaler)
+    train_x_scaled = pd.DataFrame(
+        x_standard_scaler.fit_transform(train_x_logged),
+        columns=train_x_logged.columns, index=train_x_logged.index
+    )
+    valid_x_scaled = pd.DataFrame(
+        x_standard_scaler.transform(valid_x_logged),
+        columns=valid_x_logged.columns, index=valid_x_logged.index
+    )
+    test_x_scaled = pd.DataFrame(
+        x_standard_scaler.transform(test_x_logged),
+        columns=test_x_logged.columns, index=test_x_logged.index
+    )
 
-    # z-score standardization
-    train_scaled, standard_scaler = train_scaler_fit_transform(train_minmax, Standardscaler)
-    valid_scaled = valid_test_scaler_transform(valid_minmax, standard_scaler)
-    test_scaled  = valid_test_scaler_transform(test_minmax, standard_scaler)
+    y_standard_scaler = StandardScaler()
+    train_y_scaled = pd.DataFrame(
+        y_standard_scaler.fit_transform(train_y_log),
+        columns=train_y_log.columns, index=train_y_log.index
+    )
+    valid_y_scaled = pd.DataFrame(
+        y_standard_scaler.transform(valid_y_log),
+        columns=valid_y_log.columns, index=valid_y_log.index
+    )
+    test_y_scaled = pd.DataFrame(
+        y_standard_scaler.transform(test_y_log),
+        columns=test_y_log.columns, index=test_y_log.index
+)
 
-    # target usage_kWh에 대해서도 동일하게 진행
-    # feature / target 분리해서 진행해야 함
-    # y_xx_scaled: 추후 역변환 시 사용
+    train_preprocessed = train_x_scaled
+    valid_preprocessed = valid_x_scaled
+    test_preprocessed  = test_x_scaled
 
-    # Min-Max scaling
-    train_minmax_y, y_minmax_scaler = train_scaler_fit_transform(train_y, MinMaxscaler)
-    valid_minmax_y = valid_test_scaler_transform(valid_y, MinMaxscaler)
-    test_minmax_y = valid_test_scaler_transform(test_y, MinMaxscaler)
+    train_preprocessed_y = train_y_scaled
+    valid_preprocessed_y = valid_y_scaled
+    test_preprocessed_y  = test_y_scaled
 
-    # z-score standardization
-    train_scaled_y, y_standard_scaler = train_scaler_fit_transform(train_minmax_y, Standardscaler)
-    valid_scaled_y = valid_test_scaler_transform(valid_minmax_y, Standardscaler)
-    test_scaled_y  = valid_test_scaler_transform(test_minmax_y, Standardscaler)
-
-    # 로그 변환
+    train_preprocessed['usage_kWh'] = train_preprocessed_y['usage_kWh'] 
+    valid_preprocessed['usage_kWh'] = valid_preprocessed_y['usage_kWh']
+    test_preprocessed['usage_kWh'] = test_preprocessed_y['usage_kWh']
 
     # 전처리 완료된 데이터 저장
+
+    # 데이터 형태 출력
+    print("[최종 데이터 형태 출력]\n")
+    print("Train Origin Data Shape:", train_origin.shape)
+    print("Validation Origin Data Shape:", valid_origin.shape)
+    print("Test Origin Data Shape:", test_origin.shape)
+    print("\n")
+    print("Train Preprocessed Data Shape:", train_preprocessed.shape)
+    print("Validation Preprocessed Data Shape:", valid_preprocessed.shape)
+    print("Test Preprocessed Data Shape:", test_preprocessed.shape)
+    print("\n")
+    print("Train Preprocessed Y Data Shape:", train_preprocessed_y.shape)
+    print("Validation Preprocessed Y Data Shape:", valid_preprocessed_y.shape)
+    print("Test Preprocessed Y Data Shape:", test_preprocessed_y.shape)
+    print("\n")
 
     # df 이름 형태의 폴더 생성
     if not os.path.exists(f'{industry_name}'):
@@ -454,28 +504,31 @@ def data_preprocessing(industry_name: str, data: pd.DataFrame):
     test_origin.to_csv(f'{industry_name}/{industry_name}_test_origin.csv', index=False)
 
     # scaled: 정규화, 표준화 완료
-    train_scaled.to_csv(f'{industry_name}/{industry_name}_train_scaled.csv', index=False)
-    valid_scaled.to_csv(f'{industry_name}/{industry_name}_valid_scaled.csv', index=False)
-    test_scaled.to_csv(f'{industry_name}/{industry_name}_test_scaled.csv', index=False)
+    train_preprocessed.to_csv(f'{industry_name}/{industry_name}_train_preprocessed.csv', index=False)
+    valid_preprocessed.to_csv(f'{industry_name}/{industry_name}_valid_preprocessed.csv', index=False)
+    test_preprocessed.to_csv(f'{industry_name}/{industry_name}_test_preprocessed.csv', index=False)
 
     # y_scaled: target usage_kWh에 대해서도 동일하게 진행
-    train_scaled_y.to_csv(f'{industry_name}/{industry_name}_train_scaled_y.csv', index=False)
-    valid_scaled_y.to_csv(f'{industry_name}/{industry_name}_valid_scaled_y.csv', index=False)
-    test_scaled_y.to_csv(f'{industry_name}/{industry_name}_test_scaled_y.csv', index=False)
+    train_preprocessed_y.to_csv(f'{industry_name}/{industry_name}_train_preprocessed_y.csv', index=False)
+    valid_preprocessed_y.to_csv(f'{industry_name}/{industry_name}_valid_preprocessed_y.csv', index=False)
+    test_preprocessed_y.to_csv(f'{industry_name}/{industry_name}_test_preprocessed_y.csv', index=False)
 
     # 스케일러 객체 저장
     import joblib
-    joblib.dump(minmax_scaler, f'{industry_name}/{industry_name}_minmax_scaler.pkl')
-    joblib.dump(standard_scaler, f'{industry_name}/{industry_name}_standard_scaler.pkl')
-    joblib.dump(y_minmax_scaler, f'{industry_name}/{industry_name}_y_minmax_scaler.pkl')
+    # joblib.dump(minmax_scaler, f'{industry_name}/{industry_name}_minmax_scaler.pkl')
+    joblib.dump(x_standard_scaler, f'{industry_name}/{industry_name}_standard_scaler.pkl')
+    # joblib.dump(y_minmax_scaler, f'{industry_name}/{industry_name}_y_minmax_scaler.pkl')
     joblib.dump(y_standard_scaler, f'{industry_name}/{industry_name}_y_standard_scaler.pkl')
 
     print(f"[{industry_name}] Data preprocessing completed and saved.\n")
 
 # main 실행 블록
 if __name__ == "__main__":
-    industry_name = "광명금속"
-    data = "광명금속_시계열_데이터(2024.08_2025.09).csv"
+    """
+    - 산업체명 변경할 경우 **industry_name**, **data** 변수 수정 필요
+    """
+    industry_name = "금호정밀"
+    data = "금호정밀_시계열_데이터(2024.08_2025.09).csv"
 
     if not os.path.exists(f"{industry_name}"):
         os.makedirs(f"{industry_name}")

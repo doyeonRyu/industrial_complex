@@ -77,8 +77,8 @@ def load_data(path):
         - path: str, 데이터가 저장된 디렉토리 경로
     Returns:
         - train_origin, valid_origin, test_origin: 원본 데이터
-        - train_scaled, valid_scaled, test_scaled: 스케일링된 입력 데이터
-        - train_scaled_y, valid_scaled_y, test_scaled_y: 스케일링된 타겟 데이터
+        - train_preprocessed, valid_preprocessed, test_preprocessed: 전처리 완료된 입력 데이터
+        - train_preprocessed_y, valid_preprocessed_y, test_preprocessed_y: 전처리 완료된 타겟 데이터
         - minmax_scaler: 입력 피처용 MinMaxScaler 객체
         - standard_scaler: 입력 피처용 StandardScaler 객체
         - y_minmax_scaler: 타겟 피처용 MinMaxScaler 객체
@@ -92,14 +92,27 @@ def load_data(path):
     valid_origin = pd.read_csv(path + f"{path_name}_valid_origin.csv")
     test_origin = pd.read_csv(path + f"{path_name}_test_origin.csv")
 
-    train_scaled = pd.read_csv(path + f"{path_name}_train_scaled.csv")
-    valid_scaled = pd.read_csv(path + f"{path_name}_valid_scaled.csv")
-    test_scaled = pd.read_csv(path + f"{path_name}_test_scaled.csv")
+    train_preprocessed = pd.read_csv(path + f"{path_name}_train_preprocessed.csv")
+    valid_preprocessed = pd.read_csv(path + f"{path_name}_valid_preprocessed.csv")
+    test_preprocessed = pd.read_csv(path + f"{path_name}_test_preprocessed.csv")
 
-    train_scaled_y = pd.read_csv(path + f"{path_name}_train_scaled_y.csv")
-    valid_scaled_y = pd.read_csv(path + f"{path_name}_valid_scaled_y.csv")
-    test_scaled_y = pd.read_csv(path + f"{path_name}_test_scaled_y.csv")
+    train_preprocessed_y = pd.read_csv(path + f"{path_name}_train_preprocessed_y.csv")
+    valid_preprocessed_y = pd.read_csv(path + f"{path_name}_valid_preprocessed_y.csv")
+    test_preprocessed_y = pd.read_csv(path + f"{path_name}_test_preprocessed_y.csv")
     
+    print("Train Origin Data Shape:", train_origin.shape)
+    print("Validation Origin Data Shape:", valid_origin.shape)
+    print("Test Origin Data Shape:", test_origin.shape)
+    print("\n")
+    print("Train Preprocessed Data Shape:", train_preprocessed.shape)
+    print("Validation Preprocessed Data Shape:", valid_preprocessed.shape)
+    print("Test Preprocessed Data Shape:", test_preprocessed.shape)
+    print("\n")
+    print("Train Preprocessed Y Data Shape:", train_preprocessed_y.shape)
+    print("Validation Preprocessed Y Data Shape:", valid_preprocessed_y.shape)
+    print("Test Preprocessed Y Data Shape:", test_preprocessed_y.shape)
+    print("\n")
+
     # sklearn 객체 (StandardScaler, MinMaxScaler 등) 로드 함수
     def safe_load_sklearn_obj(file_path):
         '''
@@ -129,17 +142,17 @@ def load_data(path):
                             f"파이썬/스킷런 버전 불일치, 다른 객체를 잘못 저장\n"
                             f"원본 에러: {type(e).__name__}: {e}")
         
-    minmax_scaler = safe_load_sklearn_obj(path + f"{path_name}_minmax_scaler.pkl")
+    # minmax_scaler = safe_load_sklearn_obj(path + f"{path_name}_minmax_scaler.pkl")
     standard_scaler = safe_load_sklearn_obj(path + f"{path_name}_standard_scaler.pkl")
-    y_minmax_scaler = safe_load_sklearn_obj(path + f"{path_name}_y_minmax_scaler.pkl")
+    # y_minmax_scaler = safe_load_sklearn_obj(path + f"{path_name}_y_minmax_scaler.pkl")
     y_standard_scaler = safe_load_sklearn_obj(path + f"{path_name}_y_standard_scaler.pkl")
 
     print(f"Data and scalers loaded successfully from {path_name}.\n")
 
     return (train_origin, valid_origin, test_origin,
-            train_scaled, valid_scaled, test_scaled,
-            train_scaled_y, valid_scaled_y, test_scaled_y,
-            minmax_scaler, standard_scaler, y_minmax_scaler, y_standard_scaler)
+            train_preprocessed, valid_preprocessed, test_preprocessed,
+            train_preprocessed_y, valid_preprocessed_y, test_preprocessed_y,
+            None, standard_scaler, None, y_standard_scaler)
 
 # 슬라이딩 윈도우 생성 함수
 def sliding_window(df, input_window, output_window,
@@ -150,7 +163,7 @@ def sliding_window(df, input_window, output_window,
           output_window 길이 만큼의 타겟 생성
     Parameters:
         - df: pandas DataFrame, 시계열 데이터(전처리 완료된 상태)
-        - input_window: input_window 길이 
+        - input_window: input_window 길이
         - output_window: output_window 길이
         - target_col: 타겟 컬럼명 (default: "usage_kWh")
         - keep_target_in_x: 입력 피처에 타겟 컬럼 포함 여부 (default: True)
@@ -167,7 +180,7 @@ def sliding_window(df, input_window, output_window,
     xs, ys = [], [] # 입력과 타겟 리스트
 
     # 인덱스 초기화
-    sub = df.reset_index(drop=True)
+    sub = df.reset_index(drop=True) # sub: 인덱스 초기화된 DataFrame
 
     # 숫자형 feature 선택
     numeric_cols = sub.select_dtypes(include=[np.number]).columns.tolist()
@@ -228,7 +241,7 @@ def build_dataloader(torch_train_x, torch_train_y,
     return train_loader, valid_loader, test_loader
 
 # 모델 초기화 함수
-def build_model(model1, model2, train_scaled, input_window, output_window, device):
+def build_model(model1, model2, train_preprocessed, input_window, output_window, device):
     """
     Function: build_model
         - 하이브리드 or 단일 시계열 예측 모델 초기화
@@ -237,7 +250,7 @@ def build_model(model1, model2, train_scaled, input_window, output_window, devic
     Parameters:
         - model1: str or None, "CNN" or None
         - model2: str, "LSTM" or "Transformer"
-        - train_scaled: pandas DataFrame, 학습 데이터 (스케일링된 상태)
+        - train_preprocessed: pandas DataFrame, 학습 데이터 (전처리된 상태)
         - input_window: int, 입력 시퀀스 길이
         - output_window: int, 출력 시퀀스 길이
         - device: torch.device, 모델과 데이터를 올릴 디바이스 (cpu or cuda)
@@ -247,7 +260,7 @@ def build_model(model1, model2, train_scaled, input_window, output_window, devic
     if model1 is not None: # CNN + 시계열 예측 모델 하이브리드 모델 (2-step hybrid)
         # CNN 모델 생성
         cnn = CNN(
-            in_channels=train_scaled.shape[1], # 입력 피처 수
+            in_channels=train_preprocessed.shape[1], # 입력 피처 수
             out_channels=out_channels,
             kernel_size=kernel_size,
             stride=stride,
@@ -299,7 +312,7 @@ def build_model(model1, model2, train_scaled, input_window, output_window, devic
             # LSTM 파라미터 설정
             # LSTM 모델 생성
             lstm = LSTM(
-                input_size = train_scaled.shape[1], # LSTM에 처음 data input이므로 변수 개수와 동일하게 들어가야 함
+                input_size = train_preprocessed.shape[1], # LSTM에 처음 data input이므로 변수 개수와 동일하게 들어가야 함
                 hidden_size=hidden_size,
                 output_size=output_window,
                 num_layers=num_lstm_layers,
@@ -312,7 +325,7 @@ def build_model(model1, model2, train_scaled, input_window, output_window, devic
             # Transformer 모델 생성
             # Transformer 파라미터 설정
             transformer = Transformer(
-                input_dim=train_scaled.shape[1],
+                input_dim=train_preprocessed.shape[1],
                 d_model=d_model,
                 nhead=nhead,
                 num_enc_layers=num_ts_layers,
@@ -345,15 +358,15 @@ def train_model(path, input_window, output_window,
     Returns:
         - None
     """
-    _, _, _, train_scaled, valid_scaled, _, _, _, _, _, _, _, _ = load_data(path)
+    _, _, _, train_preprocessed, valid_preprocessed, _, _, _, _, _, _, _, _ = load_data(path)
 
     # sliding_window, torch.Tensor 변환
     torch_train_x, torch_train_y = sliding_window(
-        train_scaled, input_window, output_window,
+        train_preprocessed, input_window, output_window,
         target_col="usage_kWh", keep_target_in_x=True
     )
     torch_valid_x, torch_valid_y = sliding_window(
-        valid_scaled, input_window, output_window,
+        valid_preprocessed, input_window, output_window,
         target_col="usage_kWh", keep_target_in_x=True
     )
 
@@ -361,7 +374,7 @@ def train_model(path, input_window, output_window,
         torch_train_x, torch_train_y, torch_valid_x, torch_valid_y, None, None, batch_size=batch_size
     )
 
-    model1, model2 = build_model(model1, model2, train_scaled, input_window, output_window, device)
+    model1, model2 = build_model(model1, model2, train_preprocessed, input_window, output_window, device)
 
     # 스텝별 파라미터를 하나의 optimizer에 넣기
     if model1 is not None: 
@@ -415,10 +428,11 @@ def train_model(path, input_window, output_window,
 
 # main 실행 블록
 if __name__ == "__main__":
-    path = "data/광명금속/"
+    "산업체명 변경할 경우 **path** 변수 수정 필요"
+    path = "data/금호정밀/"
     path_name = os.path.basename(os.path.normpath(path)) # 예: "광명금속"
-    input_window = 24 # 15분 단위, 24 = 6시간
-    output_window = 24 # 15분 단위, 24 = 6시간
+    input_window = 10 # 15분 단위, 24 = 6시간
+    output_window = 1 # 15분 단위, 24 = 6시간
     model1 = "CNN" # "CNN" or None
     model2 = "LSTM" # "LSTM" or "Transformer"
     num_epochs = 500

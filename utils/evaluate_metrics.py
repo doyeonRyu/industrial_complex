@@ -179,20 +179,20 @@ def metrics(best_model1_path, best_model2_path, model1, model2,
 
     # 역변환: Standard -> MinMax -> (로그)
     if std_scaler is not None: 
-        y_after_standard  = std_scaler.inverse_transform(all_y)
-        yhat_after_standard = std_scaler.inverse_transform(all_yhat)
+        y_after_scaled  = std_scaler.inverse_transform(all_y)
+        yhat_after_scaled = std_scaler.inverse_transform(all_yhat)
 
     if mm_scaler is not None:
-        y_after_minmax  = mm_scaler.inverse_transform(y_after_standard)
-        yhat_after_minmax = mm_scaler.inverse_transform(yhat_after_standard)
+        y_after_scaled  = mm_scaler.inverse_transform(y_after_scaled)
+        yhat_after_scaled = mm_scaler.inverse_transform(yhat_after_scaled)
 
     # 최종 결과
     if logged:# 타겟 로그 변환 시: log1p -> expm1로 복원
-        all_y = np.expm1(y_after_minmax).ravel()
-        all_yhat = np.expm1(yhat_after_minmax).ravel()
+        all_y = np.expm1(y_after_scaled).ravel()
+        all_yhat = np.expm1(yhat_after_scaled).ravel()
     else:
-        all_y = y_after_minmax.ravel()
-        all_yhat = yhat_after_minmax.ravel()
+        all_y = y_after_scaled.ravel()
+        all_yhat = yhat_after_scaled.ravel()
 
     # 지표 계산
     mae  = skm.mean_absolute_error(all_y, all_yhat)
