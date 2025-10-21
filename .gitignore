@@ -1,6 +1,4 @@
-/data/processed/
-/data/raw/
-/data/unfinished/
+/data/
 __pycache__/
 data_preprocessing.ipynb
 *.ipynb
