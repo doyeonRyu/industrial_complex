@@ -30,6 +30,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import os
 import sys
+import holidays
 
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.preprocessing import StandardScaler
@@ -92,12 +93,15 @@ def data_inspection(industry_name: str, data: pd.DataFrame):
     data.columns = ['datetime', 'usage_kWh', 'max_demand_kW', 'reactive_usage_kWh_kVarh_inductive', 'reactive_usage_kWh_kVarh_capacitive', 'CO2_tCO2', 'usage_kWh_factor_inductive', 'usage_kWh_factor_capacitive']
     
     # 상관관계가 0.35 이하인 컬럼 drop
-    # data = data.drop(columns=['reactive_usage_kWh_kVarh_capacitive', 'usage_kWh_factor_capacitive'])
+    data = data.drop(columns=['reactive_usage_kWh_kVarh_capacitive', 'usage_kWh_factor_capacitive'])
     print(data.columns, "\n")
 
     # 2) 변수별 시각화
     feature_cols = [col for col in data.columns if col != 'datetime' and col != 'usage_kWh']
     
+    plt.rcParams['font.family'] ='Malgun Gothic'
+    plt.rcParams['axes.unicode_minus'] =False
+
     # df 이름 형태의 폴더 생성 
     if not os.path.exists('plots'):
         os.makedirs('plots')
@@ -130,7 +134,7 @@ def data_inspection(industry_name: str, data: pd.DataFrame):
     avg_usage_by_month = data.groupby('month')['usage_kWh'].mean()
     plt.figure(figsize=(10, 6))
     sns.barplot(x=avg_usage_by_month.index, y=avg_usage_by_month.values)
-    plt.title('monthly mean usage (kWh)')
+    plt.title(f'[{industry_name}] monthly mean usage (kWh)')
     plt.xlabel('Month')
     plt.ylabel('Average Usage (kWh)')
     # plt.show() # 주석 처리 - 노트북에서 실행 시 사용
@@ -138,23 +142,38 @@ def data_inspection(industry_name: str, data: pd.DataFrame):
     # month 열 삭제
     data.drop(columns=['month'], inplace=True)
 
-    # 2-3) 각 변수별 사용량과의 상관관계 산점도
+    # 2-3) 시간대별 평균 사용량 시각화
+    # 날짜별 시간 추출
+    data['hour'] = data['datetime'].dt.hour
+    # 시간대별 평균 사용량 계산
+    avg_usage_by_hour = data.groupby('hour')['usage_kWh'].mean()
+    plt.figure(figsize=(10, 6))
+    sns.barplot(x=avg_usage_by_hour.index, y=avg_usage_by_hour.values)
+    plt.title(f'[{industry_name}] hourly mean usage (kWh)')
+    plt.xlabel('Hour of the Day')
+    plt.ylabel('Average Usage (kWh)')
+    # plt.show() # 주석 처리 - 노트북에서 실행 시 사용
+    plt.savefig(f'plots/{industry_name}/[{industry_name}] hourly_mean_usage.png')
+    # hour 열 삭제
+    data.drop(columns=['hour'], inplace=True)
+
+    # 2-4) 각 변수별 사용량과의 상관관계 산점도
     plt.figure(figsize=(10, 6))
     for i, col in enumerate(feature_cols):
         plt.subplot(3, 2, i + 1)
         sns.scatterplot(data=data, x=col, y='usage_kWh')
-        plt.title(f'Usage vs {col}')
+        plt.title(f'[{industry_name}] Usage vs {col}')
         plt.xlabel(col)
         plt.ylabel('Usage (kWh)')
     plt.tight_layout()
     # plt.show() # 주석 처리 - 노트북에서 실행 시 사용
     plt.savefig(f'plots/{industry_name}/[{industry_name}] features_usage_scatter_plot.png')
 
-    # 2-4) 각 변수별 사용량과의 상관관계 히트맵
+    # 2-5) 각 변수별 사용량과의 상관관계 히트맵
     plt.figure(figsize=(10, 10))
     corr = data.corr()
     sns.heatmap(corr, annot=True, fmt=".2f", cmap='coolwarm', vmin=-1, vmax=1)
-    plt.title('Correlation Matrix')
+    plt.title(f'[{industry_name}] Correlation Matrix')
     plt.tight_layout()
     # plt.show() # 주석 처리 - 노트북에서 실행 시 사용
     plt.savefig(f'plots/{industry_name}/[{industry_name}] correlation_matrix.png')
@@ -169,7 +188,8 @@ def data_preprocessing(industry_name: str, data: pd.DataFrame):
         3) Train / Valid / Test 분할
         4) X, y 분리
         5) 이상치, 결측치 탐색 및 처리
-        6) 정규화, 표준화
+        6) 로그 변환
+        7) 정규화, 표준화
     Parameters:
         - industry_name: 산업체 이름 (예: "광명금속")
         - data: 전처리할 데이터프레임
@@ -183,29 +203,6 @@ def data_preprocessing(industry_name: str, data: pd.DataFrame):
     print(f"[{industry_name}] Data preprocessing process...\n")
     
     # 3) Train / Valid / Test 분할
-    # def split_train_val_test(data=data, train_ratio=0.7, val_ratio=0.15):    
-    #     train_data = pd.DataFrame()
-    #     val_data = pd.DataFrame()
-    #     test_data = pd.DataFrame()
-
-    #     total_len = len(data)
-    #     train_end = int(total_len * train_ratio)
-    #     val_end = int(total_len * (train_ratio + val_ratio))
-
-    #     train_data = pd.concat([train_data, data.iloc[:train_end]])
-    #     val_data = pd.concat([val_data, data.iloc[train_end:val_end]])
-    #     test_data = pd.concat([test_data, data.iloc[val_end:]])
-
-    #     # 인덱스 재설정
-    #     train_data = train_data.reset_index(drop=True)
-    #     val_data = val_data.reset_index(drop=True)
-    #     test_data = test_data.reset_index(drop=True)
-
-    #     return train_data, val_data, test_data
-    
-    # train, valid, test = split_train_val_test(data)
-
-
     def split_train_val_test(data: pd.DataFrame, train_ratio: float = 0.7, valid_ratio: float = 0.15, gap_weeks: int = 0):
         '''
         Function: split_train_val_test
@@ -326,11 +323,118 @@ def data_preprocessing(industry_name: str, data: pd.DataFrame):
 
     train, valid, test = split_train_val_test(data)
 
+    # holidays 패키지가 없을 때도 동작하도록 방어
+    try:
+        import holidays
+        HAS_HOLIDAYS = True
+    except Exception:
+        HAS_HOLIDAYS = False
+
+
+    def build_date_related_features(df: pd.DataFrame,
+                                    datetime_col: str = "datetime",
+                                    tz: str = "Asia/Seoul",
+                                    drop_raw_parts: bool = True) -> pd.DataFrame:
+        '''
+        Function: build_date_related_features
+            - datetime 기반 달력/시간 파생변수를 생성하고, 주기적 패턴을 sin/cos로 인코딩
+            - 한국 공휴일(있으면) 및 주말 플래그 추가
+        Parameters:
+            - df: pd.DataFrame
+                - datetime_col을 포함하는 데이터프레임
+            - datetime_col: str
+                - 날짜시간 컬럼명 (기본 "datetime")
+            - tz: str
+                - 타임존, naive면 로컬라이즈 / aware면 변환 (기본 "Asia/Seoul")
+            - drop_raw_parts: bool
+                - year/month/day/hour 등 원시 분해 컬럼을 드랍할지 여부 (기본 True)
+        Returns:
+            - out: pd.DataFrame
+                - 파생변수가 추가된 데이터프레임 (copy 반환)
+        '''
+        out = df.copy()  # 원본 보존
+
+        # 1) datetime 정리 ---------------------------------------------------------
+        out[datetime_col] = pd.to_datetime(out[datetime_col])  # 문자열→datetime 변환
+        if out[datetime_col].dt.tz is None:
+            # tz 정보가 없으면 해당 tz로 로컬라이즈
+            out[datetime_col] = out[datetime_col].dt.tz_localize(tz)
+        else:
+            # tz-aware면 지정 tz로 변환
+            out[datetime_col] = out[datetime_col].dt.tz_convert(tz)
+
+        dt = out[datetime_col]  # 편의를 위한 별칭
+
+        # 2) 기본 분해(원시 파트) ---------------------------------------------------
+        out['year']       = dt.dt.year               # 연도
+        out['month']      = dt.dt.month              # 월(1~12)
+        out['day']        = dt.dt.day                # 일(1~31)
+        out['hour']       = dt.dt.hour               # 시(0~23)
+        out['minute']     = dt.dt.minute             # 분(0~59)
+        out['dayofweek']  = dt.dt.weekday            # 요일(월=0, 일=6)
+        out['dayofyear']  = dt.dt.dayofyear          # 연중 몇번째 날(1~366)
+        out['weekofyear'] = dt.dt.isocalendar().week.astype(int)  # ISO 주차
+        out['quarter']    = dt.dt.quarter            # 분기(1~4)
+
+        # 3) 주말/공휴일 플래그 -----------------------------------------------------
+        out['is_weekend'] = out['dayofweek'].isin([5, 6]).astype(int)  # 토/일=1
+
+        if HAS_HOLIDAYS:
+            # 공휴일 집합: 데이터 기간의 연도 범위만 생성해 비용 최소화
+            y0, y1 = out['year'].min(), out['year'].max()
+            kr_holiday = holidays.country_holidays('KR', years=list(range(y0, y1 + 1)))
+            holiday_dates = pd.to_datetime(list(kr_holiday.keys())).date  # date 배열
+            holiday_set = set(holiday_dates)                              # membership 테스트용 set
+            out['is_holiday'] = dt.dt.date.isin(holiday_set).astype(int)  # 벡터화된 isin
+        else:
+            # holidays 패키지가 없으면 0으로 채움(향후 설치 권장)
+            out['is_holiday'] = 0
+
+        # 4) 계절 라벨(겨울=0, 봄=1, 여름=2, 가을=3) ------------------------------
+        def _season(m: int) -> int:
+            # 12,1,2=겨울(0) / 3,4,5=봄(1) / 6,7,8=여름(2) / 9,10,11=가을(3)
+            if m in (12, 1, 2):
+                return 0
+            elif m in (3, 4, 5):
+                return 1
+            elif m in (6, 7, 8):
+                return 2
+            else:
+                return 3
+        out['season'] = out['month'].apply(_season).astype(int)
+
+        # 5) 사이클릭 인코딩 --------------------------------------------------------
+        # 요일(7), 시(24), 월(12), 연중일(365/366)
+        out['dow_sin']  = np.sin(2 * np.pi * out['dayofweek'] / 7.0)
+        out['dow_cos']  = np.cos(2 * np.pi * out['dayofweek'] / 7.0)
+        out['hour_sin'] = np.sin(2 * np.pi * out['hour'] / 24.0)
+        out['hour_cos'] = np.cos(2 * np.pi * out['hour'] / 24.0)
+        out['mon_sin']  = np.sin(2 * np.pi * (out['month'] - 1) / 12.0)
+        out['mon_cos']  = np.cos(2 * np.pi * (out['month'] - 1) / 12.0)
+        out['doy_sin']  = np.sin(2 * np.pi * (out['dayofyear'] - 1) / 366.0)
+        out['doy_cos']  = np.cos(2 * np.pi * (out['dayofyear'] - 1) / 366.0)
+
+        # 6) (선택) 원시 파트 드랍 ---------------------------------------------------
+        if drop_raw_parts:
+            # 원시 분해 컬럼은 중복/누설 위험이 있으니 sin/cos와 플래그만 남기는 걸 권장
+            out = out.drop(columns=[
+                'year', 'month', 'day', 'hour', 'minute',
+                'dayofweek', 'dayofyear', 'weekofyear', 'quarter'
+            ])
+
+        return out
+
     # 추후 시각화를 위해 원본 복사
     train_origin = train.copy()
     valid_origin = valid.copy()
     test_origin = test.copy()
 
+    # 날짜 관련 파생변수 생성
+    train = build_date_related_features(train, datetime_col="datetime", tz="Asia/Seoul", drop_raw_parts=True)
+    valid = build_date_related_features(valid, datetime_col="datetime", tz="Asia/Seoul", drop_raw_parts=True)
+    test = build_date_related_features(test, datetime_col="datetime", tz="Asia/Seoul", drop_raw_parts=True)
+    print("[날짜 관련 파생변수 생성 완료]\n")
+    
     # datetime 컬럼 제거
     train = train.drop(columns=["datetime"])
     valid = valid.drop(columns=["datetime"])
@@ -343,7 +447,7 @@ def data_preprocessing(industry_name: str, data: pd.DataFrame):
 
     train_x = train.drop(columns=["usage_kWh"])
     valid_x = valid.drop(columns=["usage_kWh"]) 
-    test_x  = test.drop(columns=["usage_kWh"])
+    test_x = test.drop(columns=["usage_kWh"])
 
     # 5) 이상치, 결측치 탐색 및 처리
     print("[이상치 및 결측치 탐색 및 처리]\n")
@@ -426,44 +530,40 @@ def data_preprocessing(industry_name: str, data: pd.DataFrame):
     print("\n")
 
     # 6) 로그 변환
-    train_x_logged = np.log1p(train_x)
-    valid_x_logged = np.log1p(valid_x)
-    test_x_logged  = np.log1p(test_x)
-
-    train_y_log = np.log1p(train_y.clip(lower=0))
-    valid_y_log = np.log1p(valid_y.clip(lower=0))
-    test_y_log  = np.log1p(test_y.clip(lower=0))
+    # train_y_log = np.log1p(train_y.clip(lower=0))
+    # valid_y_log = np.log1p(valid_y.clip(lower=0))
+    # test_y_log = np.log1p(test_y.clip(lower=0))
 
     # 7) 정규화, 표준화
     x_minmax_scaler = MinMaxScaler() # 0-1 사이로 정규화
     x_standard_scaler = StandardScaler() # 평균 0, 표준편차 1로 표준화
 
     train_x_scaled = pd.DataFrame(
-        x_standard_scaler.fit_transform(train_x_logged),
-        columns=train_x_logged.columns, index=train_x_logged.index
+        x_standard_scaler.fit_transform(train_x),
+        columns=train_x.columns, index=train_x.index
     )
     valid_x_scaled = pd.DataFrame(
-        x_standard_scaler.transform(valid_x_logged),
-        columns=valid_x_logged.columns, index=valid_x_logged.index
+        x_standard_scaler.transform(valid_x),
+        columns=valid_x.columns, index=valid_x.index
     )
     test_x_scaled = pd.DataFrame(
-        x_standard_scaler.transform(test_x_logged),
-        columns=test_x_logged.columns, index=test_x_logged.index
+        x_standard_scaler.transform(test_x),
+        columns=test_x.columns, index=test_x.index
     )
 
     y_standard_scaler = StandardScaler()
     train_y_scaled = pd.DataFrame(
-        y_standard_scaler.fit_transform(train_y_log),
-        columns=train_y_log.columns, index=train_y_log.index
+        y_standard_scaler.fit_transform(train_y),
+        columns=train_y.columns, index=train_y.index
     )
     valid_y_scaled = pd.DataFrame(
-        y_standard_scaler.transform(valid_y_log),
-        columns=valid_y_log.columns, index=valid_y_log.index
+        y_standard_scaler.transform(valid_y),
+        columns=valid_y.columns, index=valid_y.index
     )
     test_y_scaled = pd.DataFrame(
-        y_standard_scaler.transform(test_y_log),
-        columns=test_y_log.columns, index=test_y_log.index
-)
+        y_standard_scaler.transform(test_y),
+        columns=test_y.columns, index=test_y.index
+    )
 
     train_preprocessed = train_x_scaled
     valid_preprocessed = valid_x_scaled
@@ -527,7 +627,7 @@ if __name__ == "__main__":
     """
     - 산업체명 변경할 경우 **industry_name**, **data** 변수 수정 필요
     """
-    industry_name = "금호정밀"
+    industry_name = "광명금속"
     data = f"{industry_name}_시계열_데이터(2024.08_2025.09).csv"
 
     if not os.path.exists(f"data/preprocessed/{industry_name}"):

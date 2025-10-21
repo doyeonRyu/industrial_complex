@@ -332,7 +332,7 @@ if __name__ == "__main__":
     - 기간/키워드/확장자/정규식 등의 파라미터도 필요 시 조정
     """
     # 산업체 루트 경로
-    base_dir = "C:/Users/ryudo/Desktop/forecasting_models/industrial_complex/data/raw/9.금호정밀"
+    base_dir = "C:/Users/ryudo/Desktop/forecasting_models/industrial_complex/data/raw/9.광명금속"
     start_ym = "2024.08"
     end_ym = "2025.09"
     # 실행
@@ -353,6 +353,6 @@ if __name__ == "__main__":
             ('역률 (%)', '지상'),
             ('역률 (%)', '진상')
         ],
-        output_csv=f"금호정밀_시계열_데이터({start_ym}_{end_ym}).csv",
+        output_csv=f"광명금속_시계열_데이터({start_ym}_{end_ym}).csv",
         output_encoding="utf-8-sig"
     )

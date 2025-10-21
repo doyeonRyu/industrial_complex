@@ -106,6 +106,7 @@ def plot_predictions_chained(
     seen = 0 # 지금까지 본 샘플 수 (글로벌 오프셋)
     pred_map = {} # 예측 결과를 시간별로 누적(겹치면 최신 예측으로 덮어쓰기)
 
+    
     with torch.no_grad():
         for batch in data_loader:
             xb = batch[0]
@@ -173,6 +174,8 @@ def plot_predictions_chained(
 
     # ===================================================
     # 시각화
+    weekday_fmt = mdates.DateFormatter('%m-%d (%a)\n%H:%M')
+
     plt.figure(figsize=(10, 4.8))
     plt.rcParams['font.family'] ='Malgun Gothic'
     plt.rcParams['axes.unicode_minus'] =False
@@ -181,18 +184,20 @@ def plot_predictions_chained(
     plt.plot(pred_time, y_pred_rec, linestyle="--", label="Predicted", linewidth=2, marker="o", markersize=3)
     plt.axvline(input_end, linestyle=":", alpha=0.7)
     if model1 is not None:
-        title = f"[{industry_name} | {datatype}] 2days usage_kWh Forecast | {model1.__class__.__name__} + {model2.__class__.__name__} | Input={input_window}, Output={output_window}"
+        title = f"[{industry_name} | {datatype}] {view_days}days usage_kWh Forecast | {model1.__class__.__name__} + {model2.__class__.__name__} | Input={input_window}, Output={output_window}"
     else:
-        title = f"[{industry_name} | {datatype}] 2days usage_kWh Forecast | {model2.__class__.__name__} | Input={input_window}, Output={output_window}"
+        title = f"[{industry_name} | {datatype}] {view_days}days usage_kWh Forecast | {model2.__class__.__name__} | Input={input_window}, Output={output_window}"
     plt.title(title, fontweight='bold')
     plt.xlabel("Time (MM-DD HH)")
     plt.ylabel("Usage (kWh)")
     plt.xticks(rotation=30)
     plt.grid(True, alpha=0.3)
     plt.legend(loc="best")
-    margin = pd.Timedelta(minutes=0)  # 양쪽 분 단위 여백
+    # 날짜 포맷 지정
+    plt.gca().xaxis.set_major_formatter(weekday_fmt)
+    # 보기 범위 조정
+    margin = pd.Timedelta(minutes=0) # 좌우 여백
     plt.xlim([start_time - margin, view_end_time + margin])
-
     plt.tight_layout()
     
     if not os.path.exists(f"plots/{industry_name}"):

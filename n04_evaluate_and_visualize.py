@@ -55,11 +55,11 @@ num_ts_layers = 3
 ts_dropout = 0.1
 
 def run_evaluation_and_visualization():
-    path = "data/금호정밀/"
+    path = "data/preprocessed/광명금속/"
     industry_name = os.path.basename(os.path.normpath(path))
 
-    input_window = 10
-    output_window = 1
+    input_window = 32
+    output_window = 32
     model1 = "CNN" # "CNN" or None
     model2 = "LSTM" # "LSTM" or "Transformer"
     if model1 is not None:
@@ -70,8 +70,8 @@ def run_evaluation_and_visualization():
         model2_path = f"results/{industry_name}/{industry_name}_{model2}_({input_window},{output_window}).pth"
     batch_size = 512
     data_type = "valid"
-    view_days = 0.5
-    start_idx = 0
+    view_days = 2
+    start_idx = 0 # 5시부터 
 
     print("=== Loading data and models ===")
     _, valid_origin, test_origin, train_preprocessed, valid_preprocessed, test_preprocessed, _, _, _, _, _, _, y_standard_scaler = load_data(path)
@@ -119,7 +119,7 @@ def run_evaluation_and_visualization():
         start_idx=start_idx,
         std_scaler=y_standard_scaler,
         mm_scaler=None,
-        logged=True,
+        logged=False,
         view_days=view_days,
         industry_name=industry_name,
         datatype=data_type

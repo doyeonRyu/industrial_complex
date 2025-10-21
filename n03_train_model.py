@@ -429,13 +429,13 @@ def train_model(path, input_window, output_window,
 # main 실행 블록
 if __name__ == "__main__":
     "산업체명 변경할 경우 **path** 변수 수정 필요"
-    path = "data/금호정밀/"
+    path = "data/preprocessed/광명금속/"
     path_name = os.path.basename(os.path.normpath(path)) # 예: "광명금속"
-    input_window = 10 # 15분 단위, 24 = 6시간
-    output_window = 1 # 15분 단위, 24 = 6시간
+    input_window = 24 # 15분 단위, 24 = 6시간
+    output_window = 24 # 15분 단위, 24 = 6시간
     model1 = "CNN" # "CNN" or None
     model2 = "LSTM" # "LSTM" or "Transformer"
-    num_epochs = 500
+    num_epochs = 100
     batch_size = 512
     criterion = nn.HuberLoss(delta=1.0, reduction="mean") # Huber Loss
     optimizer_type = "Adam" # "Adam", "SGD", "RMSprop"
