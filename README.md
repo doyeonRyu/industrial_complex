@@ -3,7 +3,7 @@
 > Project: 산업 단지 전력 사용량 예측 모델   
 Author: 유도연     
 Created Date: 2025-10-13   
-Last Modified: 2025-10-14   
+Last Modified: 2025-10-21   
 > 
 - 파일 동작 순서
     - n01_load_data.py: 추출된 데이터 병합하여 산업체마다 하나의 데이터셋으로 완성
@@ -34,7 +34,7 @@ Last Modified: 2025-10-14
     - 각 변수별 사용량과의 상관관계 산점도
     - 각 변수별 사용량과의 상관관계 히트맵
 - 시각화된 그래프는 `plots/{폴더명}/{파일명}.png` 형태로 저장
-- 데이터 프레임 저장
+- 데이터 프레임 리턴
 
 ### data_preprocessing
 
