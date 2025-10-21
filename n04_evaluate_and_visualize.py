@@ -20,7 +20,8 @@ Note
 
 import os
 import torch
-from train_model import load_data, sliding_window, build_dataloader, build_model
+
+from n03_train_model import load_data, sliding_window, build_dataloader, build_model
 from utils.evaluate_metrics import metrics
 from plots.plot import plot_predictions_chained
 device = "cuda" if torch.cuda.is_available() else "cpu"
