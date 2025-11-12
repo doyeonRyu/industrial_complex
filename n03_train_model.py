@@ -35,10 +35,52 @@ from utils.evaluate_metrics import evaluate
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+# 피크 구간 가중치 부여한 Huber Loss 클래스
+class WeightedHuberLoss(nn.Module):
+    """
+    Class: WeightedHuberLoss
+        - 피크 구간에 가중치를 부여한 Huber Loss 구현
+        - 피크 가중치: 피크 구간에 대해 손실을 더 크게 반영
+        - 피크 구간: 전체 부하 중 상위 몇 퍼센트로 정의
+    Parameters:
+        - delta: Huber Loss의 delta 값
+        - peak_threshold: 전체 부하 중 상위 몇 퍼센트를 피크로 볼지
+        - peak_weight: 피크 구간 가중 배수
+    Returns:
+        - weighted_loss: 피크 구간에 가중치가 적용된 Huber Loss 값
+    """
+    def __init__(self, delta=1.0, peak_threshold=0.9, peak_weight=3.0):
+        super().__init__()
+        self.delta = delta
+        self.peak_threshold = peak_threshold  # 전체 부하 중 상위 몇 퍼센트를 피크로 볼지
+        self.peak_weight = peak_weight # 피크 구간 가중 배수
+
+    def forward(self, y_pred, y_true):
+        # 절대 오차 계산
+        error = torch.abs(y_true - y_pred)
+        
+        # 기본 huber 손실 계산
+        huber_loss = torch.where(
+            error <= self.delta,
+            0.5 * error**2,
+            self.delta * (error - 0.5 * self.delta)
+        )
+        
+        # 피크 구간 마스크 생성
+        normed = y_true / y_true.max()
+        peak_mask = (normed > self.peak_threshold).float() # peak_threshold 초과면 1, 아니면 0
+
+        # 피크에만 가중치 부여
+        weights = torch.ones_like(y_true) + peak_mask * (self.peak_weight - 1) # 피크 구간은 peak_weight 배수
+
+        # 최종 가중 손실
+        weighted_loss = torch.mean(weights * huber_loss)
+        return weighted_loss
+    
 # 모델 훈련 함수
 def train_model(path, input_window, output_window, 
                 criterion, optimizer_type, num_epochs, batch_size,
-                model1, model2, device):
+                model1, model2, device, threshold_value):
     """
     Function: train_model
         - 하이브리드 or 단일 시계열 예측 모델 훈련
@@ -79,6 +121,11 @@ def train_model(path, input_window, output_window,
     # 4. 모델 초기화
     model1, model2 = build_model(model1, model2, train_preprocessed, input_window, output_window, device)
 
+    # train 데이터의 상위 5% 값을 피크 임계값으로 설정
+    if threshold_value is not None:
+        peak_threshold = torch.quantile(torch_train_y, threshold_value)
+        criterion.peak_threshold = peak_threshold.item() # criterion 변경
+
     # 5. 옵티마이저 설정
     if model1 is not None: 
         # 하이브리드 모델의 경우
@@ -103,9 +150,18 @@ def train_model(path, input_window, output_window,
         best_model1_path = None
         best_model2_path = f'results/{path_name}/{path_name}_{model2.__class__.__name__}_({input_window},{output_window}).pth'
 
+    # 피크 가중치 경로 수정 (_peak_weight 추가)
+    if threshold_value is not None:
+        best_model2_path = best_model2_path.replace('.pth', f'_peak_weight.pth')
+        if best_model1_path is not None:
+            best_model1_path = best_model1_path.replace('.pth', f'_peak_weight.pth')
+
     # 7. 학습 루프
     print("\n======================================================================\n")
-    print(f"Training started for {path_name}...\n")
+    if threshold_value is not None:
+        print(f"Training started for {path_name} with peak weight...\n")
+    else:
+        print(f"Training started for {path_name}...\n")
 
     total_start_time = time.time()
 
@@ -161,4 +217,4 @@ if __name__ == "__main__":
 
     train_model(path, input_window, output_window, 
                 criterion, optimizer_type, num_epochs, batch_size,
-                model1, model2, device)
+                model1, model2, device, threshold_value=None)
