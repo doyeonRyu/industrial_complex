@@ -1,6 +1,6 @@
 """
 ==============================================================================
-File: load_data.py
+File: n01_load_data.py
 Project: 산업 단지 전력 사용량 예측 모델
 Author: 유도연
 Created Date: 2025-10-13
@@ -90,7 +90,7 @@ def load_data(file_path, new_cols, date_str):
         - 파일명에서 추출한 날짜 문자열(YYYYMMDD)을 바탕으로 datetime 열 생성
     Parameters:
         - file_path: str
-            - 읽을 파일 경로 (예: "C:/.../data/raw/9.광명금속/2024.08/전기사용량_시간대별(20240801).xls")
+            - 읽을 파일 경로 (예: "C:/.../data/raw/9.메인텍 2공장/2024.08/전기사용량_시간대별(20240801).xls")
         - new_cols: List[str]
             - 최종 열 이름 리스트 (예: ['시', '사용량 (kWh)', ..., '역률 (%)_진상'])
         - date_str: str
@@ -210,7 +210,7 @@ def collect_quarterhour_data(
           파일명에 날짜가 포함된 원시 파일을 읽어 15분 단위 시계열로 통합하고 CSV로 저장
     Parameters:
         - base_dir: str
-            - 산업체 루트 경로 (예: "C:/.../data/raw/9.광명금속")
+            - 산업체 루트 경로 (예: "C:/.../data/raw/9.메인텍 2공장")
         - start_ym: str
             - 시작 "YYYY.MM" (예: "2024.08")
         - end_ym: str
@@ -332,7 +332,7 @@ if __name__ == "__main__":
     - 기간/키워드/확장자/정규식 등의 파라미터도 필요 시 조정
     """
     # 산업체 루트 경로
-    base_dir = "C:/Users/ryudo/Desktop/forecasting_models/industrial_complex/data/raw/9.광명금속"
+    base_dir = "C:/Users/ryudo/Desktop/forecasting_models/industrial_complex/data/raw/9.메인텍 2공장"
     start_ym = "2024.08"
     end_ym = "2025.09"
     # 실행
@@ -353,6 +353,6 @@ if __name__ == "__main__":
             ('역률 (%)', '지상'),
             ('역률 (%)', '진상')
         ],
-        output_csv=f"광명금속_시계열_데이터({start_ym}_{end_ym}).csv",
+        output_csv=f"메인텍 2공장_시계열_데이터({start_ym}_{end_ym}).csv",
         output_encoding="utf-8-sig"
     )

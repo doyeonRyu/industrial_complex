@@ -21,9 +21,12 @@ Note
 import os
 import torch
 
-from n03_train_model import load_data, sliding_window, build_dataloader, build_model
-from utils.evaluate_metrics import metrics
-from plots.plot import plot_predictions_chained
+from utils.load_data import load_data
+from utils.sliding_window import build_sliding_window
+from utils.dataloader import build_dataloader
+from utils.model import build_model
+from utils.evaluate_metrics import metrics, save_predictions_to_excel
+from plots.plot import plot_predictions_chained, plot_single_prediction
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
 # CNN 파라미터 설정
@@ -52,41 +55,44 @@ d_model = 128
 nhead = 8
 dim_feedforward = 512
 num_ts_layers = 3
+num_ts_enc_layers = 2
+num_ts_dec_layers = 1
 ts_dropout = 0.1
 
 def run_evaluation_and_visualization():
     path = "data/preprocessed/광명금속/"
     industry_name = os.path.basename(os.path.normpath(path))
 
-    input_window = 32
+    input_window = 36
     output_window = 32
     model1 = "CNN" # "CNN" or None
-    model2 = "LSTM" # "LSTM" or "Transformer"
+    model2 = "Transformer_encoder" # "LSTM" or "Transformer_encoder" or "Transformer"
     if model1 is not None:
         model1_path = f"results/{industry_name}/{industry_name}_hybrid_{model1}_with_{model2}_({input_window},{output_window}).pth"
         model2_path = f"results/{industry_name}/{industry_name}_hybrid_{model2}_with_{model1}_({input_window},{output_window}).pth"
+        print(f"Evaluating Hybrid Model: {model1_path} + {model2_path}")
     else:
         model1_path = None
         model2_path = f"results/{industry_name}/{industry_name}_{model2}_({input_window},{output_window}).pth"
     batch_size = 512
     data_type = "valid"
-    view_days = 2
+    view_days = 5
     start_idx = 0 # 5시부터 
 
     print("=== Loading data and models ===")
     _, valid_origin, test_origin, train_preprocessed, valid_preprocessed, test_preprocessed, _, _, _, _, _, _, y_standard_scaler = load_data(path)
 
     # sliding_window, torch.Tensor 변환
-    torch_train_x, torch_train_y = sliding_window(
+    torch_train_x, torch_train_y = build_sliding_window(
         train_preprocessed, input_window, output_window,
         target_col="usage_kWh", keep_target_in_x=True
     )
-    torch_valid_x, torch_valid_y = sliding_window(
+    torch_valid_x, torch_valid_y = build_sliding_window(
         valid_preprocessed, input_window, output_window,
         target_col="usage_kWh", keep_target_in_x=True
     )
 
-    torch_test_x, torch_test_y = sliding_window(
+    torch_test_x, torch_test_y = build_sliding_window(
         test_preprocessed, input_window, output_window,
         target_col="usage_kWh", keep_target_in_x=True
     )
@@ -99,17 +105,40 @@ def run_evaluation_and_visualization():
 
     print(f"=== Evaluating [{model1.__class__.__name__} + {model2.__class__.__name__}] Performance ===")
     data_loader = valid_loader if data_type == "valid" else test_loader
-    val_mae, val_rmse, val_mape, val_r2 = metrics(
+    val_mae, val_rmse, val_mape, val_mape_filterd, val_smape, val_r2, val_pape, val_hr, val_lag = metrics(
         model1_path, model2_path, model1, model2,
         data_loader, y_standard_scaler, None, device
     )
-    print(f"[{industry_name} | {data_type}] Performance:\nMAE: {val_mae:.4f}, RMSE: {val_rmse:.4f}, MAPE: {val_mape:.4f}, R²: {val_r2:.4f}")
-    print('\nSuccessfully evaluated the model.\n') 
-    print("======================================================================\n")
-
-    print(f"=== [{model1.__class__.__name__} + {model2.__class__.__name__}] Plotting Evaluation Results ===")
+    print(f"[{industry_name} | {data_type}] Performance:\nMAE: {val_mae:.4f}, RMSE: {val_rmse:.4f}, MAPE: {val_mape:.4f}, MAPE_filtered: {val_mape_filterd:.4f}, sMAPE: {val_smape:.4f}, R²: {val_r2:.4f}, PAPE: {val_pape:.4f}, HR: {val_hr:.4f}, Lag: {val_lag:.4f}")
+    # 전체 예측 결과 엑셀 저장
     data_origin = valid_origin if data_type == "valid" else test_origin
-    plot_predictions_chained(
+    if model1_path is not None:
+        save_first_path = f"results/{industry_name}/{industry_name}_{data_type}_hybrid_{model1.__class__.__name__}_with_{model2.__class__.__name__}_({input_window},{output_window})_first_window.xlsx"
+        save_full_path = f"results/{industry_name}/{industry_name}_{data_type}_hybrid_{model1.__class__.__name__}_with_{model2.__class__.__name__}_({input_window},{output_window})_full_series.xlsx"
+    else:
+        save_first_path = f"results/{industry_name}/{industry_name}_{data_type}_{model2.__class__.__name__}_({input_window},{output_window})_first_window.xlsx"
+        save_full_path = f"results/{industry_name}/{industry_name}_{data_type}_{model2.__class__.__name__}_({input_window},{output_window})_full_series.xlsx"
+
+    save_predictions_to_excel(
+        model1_path, model2_path, model1, model2,
+        save_first_path, save_full_path,
+        data_loader,
+        data_origin,
+        y_standard_scaler,
+        None,
+        device,
+        input_window=input_window,
+        output_window=output_window,
+        target_idx=None,
+        logged=False
+    )
+    print('\nSuccessfully evaluated the model.\n')
+    print("======================================================================\n")
+    
+    print(f"=== [{model1.__class__.__name__} + {model2.__class__.__name__}] Plotting Evaluation Results ===")
+    data_origin = valid_origin if data_type == "valid" else test_origin    
+    plot_single_prediction(
+        model1_path, model2_path,
         model1, model2,
         data_loader=data_loader,
         df=data_origin,
@@ -120,11 +149,24 @@ def run_evaluation_and_visualization():
         std_scaler=y_standard_scaler,
         mm_scaler=None,
         logged=False,
-        view_days=view_days,
         industry_name=industry_name,
         datatype=data_type
     )
-    print('\nSuccessfully saved the plot.\n')
+    # plot_predictions_chained(
+    #     model1, model2,
+    #     data_loader=data_loader,
+    #     df=data_origin,
+    #     device=device,
+    #     input_window=input_window,
+    #     output_window=output_window,
+    #     view_days=view_days,
+    #     std_scaler=y_standard_scaler,
+    #     mm_scaler=None,
+    #     logged=False,
+    #     industry_name=industry_name,
+    #     datatype=data_type
+    # )
+    print(f'\nSuccessfully saved the plot [{industry_name} | {data_type}].\n')
     print('======================================================================\n')
 
 # main 실행 블록

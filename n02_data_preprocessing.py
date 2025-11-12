@@ -1,6 +1,6 @@
 """
 ==============================================================================
-File: data_preprocessing.py
+File: n02_data_preprocessing.py
 Project: 산업 단지 전력 사용량 예측 모델
 Author: 유도연
 Created Date: 2025-10-14
@@ -11,14 +11,15 @@ Description: data inspection 및 preprocessing 과정
     2) 변수별 시각화
     3) Train / Valid / Test 분할
     4) X, y 분리 
-    5) 이상치, 결측치 탐색 및 처리 
-    6) 정규화, 표준화
+    5) 이상치, 결측치 탐색 및 처리 - 생략
+    6) 로그 변환 - 생략
+    7) 정규화, 표준화
 
 Note
     - 산업체명 변경할 경우 
         - **industry_name**, **data** 변수 수정 필요
         
-    - 산업체마다 데이터 특성이 다를 수 있음. 수정 필요 - 현재는 광명금속의 포멧을 따름
+    - 산업체마다 데이터 특성이 다를 수 있음. 수정 필요
     - 추가적인 전처리 과정이 필요할 수 있음
     - 이후의 과정은 **modeling.py**에서 처리 (예: 슬라이딩 윈도우, 데이터로더 생성 등)
 ==============================================================================
@@ -30,7 +31,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import os
 import sys
-import holidays
+import joblib
 
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.preprocessing import StandardScaler
@@ -61,7 +62,7 @@ def data_inspection(industry_name: str, data: pd.DataFrame):
             - 각 변수별 사용량과의 상관관계 히트맵
         - 시각화된 그래프는 plots/폴더명/파일명.png 형태로 저장
     Parameters:
-        - industry_name: 산업체 이름 (예: "광명금속")
+        - industry_name: 산업체 이름 (예: "메인텍 2공장")
         - data: 전처리할 데이터프레임
     Returns:
         - data: 전처리된 데이터프레임
@@ -191,7 +192,7 @@ def data_preprocessing(industry_name: str, data: pd.DataFrame):
         6) 로그 변환
         7) 정규화, 표준화
     Parameters:
-        - industry_name: 산업체 이름 (예: "광명금속")
+        - industry_name: 산업체 이름 (예: "메인텍 2공장")
         - data: 전처리할 데이터프레임
     Returns:
         - None (전처리된 데이터는 CSV 파일로 저장)
@@ -323,6 +324,10 @@ def data_preprocessing(industry_name: str, data: pd.DataFrame):
 
     train, valid, test = split_train_val_test(data)
 
+    train = train.reset_index(drop=True)
+    valid = valid.reset_index(drop=True)
+    test = test.reset_index(drop=True)
+
     # holidays 패키지가 없을 때도 동작하도록 방어
     try:
         import holidays
@@ -366,26 +371,26 @@ def data_preprocessing(industry_name: str, data: pd.DataFrame):
         dt = out[datetime_col]  # 편의를 위한 별칭
 
         # 2) 기본 분해(원시 파트) ---------------------------------------------------
-        out['year']       = dt.dt.year               # 연도
-        out['month']      = dt.dt.month              # 월(1~12)
-        out['day']        = dt.dt.day                # 일(1~31)
-        out['hour']       = dt.dt.hour               # 시(0~23)
-        out['minute']     = dt.dt.minute             # 분(0~59)
-        out['dayofweek']  = dt.dt.weekday            # 요일(월=0, 일=6)
-        out['dayofyear']  = dt.dt.dayofyear          # 연중 몇번째 날(1~366)
-        out['weekofyear'] = dt.dt.isocalendar().week.astype(int)  # ISO 주차
-        out['quarter']    = dt.dt.quarter            # 분기(1~4)
+        out['year'] = dt.dt.year # 연도
+        out['month'] = dt.dt.month # 월(1~12)
+        out['day'] = dt.dt.day # 일(1~31)
+        out['hour'] = dt.dt.hour # 시(0~23)
+        out['minute'] = dt.dt.minute # 분(0~59)
+        out['dayofweek'] = dt.dt.weekday # 요일(월=0, 일=6)
+        out['dayofyear'] = dt.dt.dayofyear # 연중 몇번째 날(1~366)
+        out['weekofyear'] = dt.dt.isocalendar().week.astype(int) # ISO 주차
+        out['quarter'] = dt.dt.quarter # 분기(1~4)
 
         # 3) 주말/공휴일 플래그 -----------------------------------------------------
-        out['is_weekend'] = out['dayofweek'].isin([5, 6]).astype(int)  # 토/일=1
+        out['is_weekend'] = out['dayofweek'].isin([5, 6]).astype(int)  # 토 or 일=1
 
         if HAS_HOLIDAYS:
             # 공휴일 집합: 데이터 기간의 연도 범위만 생성해 비용 최소화
             y0, y1 = out['year'].min(), out['year'].max()
             kr_holiday = holidays.country_holidays('KR', years=list(range(y0, y1 + 1)))
-            holiday_dates = pd.to_datetime(list(kr_holiday.keys())).date  # date 배열
-            holiday_set = set(holiday_dates)                              # membership 테스트용 set
-            out['is_holiday'] = dt.dt.date.isin(holiday_set).astype(int)  # 벡터화된 isin
+            holiday_dates = pd.to_datetime(list(kr_holiday.keys())).date # date 배열
+            holiday_set = set(holiday_dates) # membership 테스트용 set
+            out['is_holiday'] = dt.dt.date.isin(holiday_set).astype(int) # 벡터화된 isin
         else:
             # holidays 패키지가 없으면 0으로 채움(향후 설치 권장)
             out['is_holiday'] = 0
@@ -424,17 +429,27 @@ def data_preprocessing(industry_name: str, data: pd.DataFrame):
 
         return out
 
-    # 추후 시각화를 위해 원본 복사
-    train_origin = train.copy()
-    valid_origin = valid.copy()
-    test_origin = test.copy()
-
     # 날짜 관련 파생변수 생성
     train = build_date_related_features(train, datetime_col="datetime", tz="Asia/Seoul", drop_raw_parts=True)
     valid = build_date_related_features(valid, datetime_col="datetime", tz="Asia/Seoul", drop_raw_parts=True)
     test = build_date_related_features(test, datetime_col="datetime", tz="Asia/Seoul", drop_raw_parts=True)
     print("[날짜 관련 파생변수 생성 완료]\n")
     
+    # datetime을 첫번째로, usage_kWh를 맨 마지막으로 이동
+    cols = train.columns.tolist()
+    cols.remove('datetime')
+    cols.remove('usage_kWh')
+    cols = ['datetime'] + cols + ['usage_kWh']
+    train = train[cols]
+    valid = valid[cols]
+    test = test[cols]
+    print("컬럼 순서 재배치 완료\n")
+    
+    # 추후 시각화를 위해 원본 복사
+    train_origin = train.copy()
+    valid_origin = valid.copy()
+    test_origin = test.copy()
+
     # datetime 컬럼 제거
     train = train.drop(columns=["datetime"])
     valid = valid.drop(columns=["datetime"])
@@ -449,14 +464,14 @@ def data_preprocessing(industry_name: str, data: pd.DataFrame):
     valid_x = valid.drop(columns=["usage_kWh"]) 
     test_x = test.drop(columns=["usage_kWh"])
 
-    # 5) 이상치, 결측치 탐색 및 처리
-    print("[이상치 및 결측치 탐색 및 처리]\n")
+    # 5) 이상치, 결측치 탐색 및 처리 - 생략
+    # print("[이상치 및 결측치 탐색 및 처리]\n")
 
-    # 결측치 탐색
-    print("이상치 처리 전 결측치 개수 \n")
-    print("Train Missing Values:\n", train.isnull().sum())
-    print("Validation Missing Values:\n", valid.isnull().sum())
-    print("Test Missing Values:\n", test.isnull().sum())
+    # # 결측치 탐색
+    # print("이상치 처리 전 결측치 개수 \n")
+    # print("Train Missing Values:\n", train.isnull().sum())
+    # print("Validation Missing Values:\n", valid.isnull().sum())
+    # print("Test Missing Values:\n", test.isnull().sum())
 
     # IQR 이상치 - NaN 대체 
     def handle_outliers_iqr(df, factor=1.5, df_name="df"):
@@ -496,38 +511,38 @@ def data_preprocessing(industry_name: str, data: pd.DataFrame):
             print(f"{col:<15}: {series.shape[0]}")
         print("\n")
         return df
-    train_x = handle_outliers_iqr(train_x, df_name="Train_x")
-    valid_x = handle_outliers_iqr(valid_x, df_name="Validation_x")
-    test_x = handle_outliers_iqr(test_x, df_name="Test_x")
+    # train_x = handle_outliers_iqr(train_x, df_name="Train_x")
+    # valid_x = handle_outliers_iqr(valid_x, df_name="Validation_x")
+    # test_x = handle_outliers_iqr(test_x, df_name="Test_x")
 
-    # y는 보통 이상치 처리하지 않음
+    # # y는 보통 이상치 처리하지 않음
 
-    # 결측치 처리 
-    # train: 선형 보간 -> 앞뒤 값으로 채우기 -> 남은 결측치는 0으로 채우기
-    train_x = train_x.interpolate(method='linear')
-    train_x = train_x.ffill().bfill()
-    train_x = train_x.fillna(0)
+    # # 결측치 처리 
+    # # train: 선형 보간 -> 앞뒤 값으로 채우기 -> 남은 결측치는 0으로 채우기
+    # train_x = train_x.interpolate(method='linear')
+    # train_x = train_x.ffill().bfill()
+    # train_x = train_x.fillna(0)
 
-    # train 평균 계산 (결측치 처리 후)
-    train_mean_x = train_x.mean()
+    # # train 평균 계산 (결측치 처리 후)
+    # train_mean_x = train_x.mean()
 
-    # valid, test: 앞의 값으로만 채우기 -> 남은 결측치는 train 평균값으로 채우기
-    valid_x = valid_x.ffill()
-    valid_x = valid_x.fillna(train_mean_x)
+    # # valid, test: 앞의 값으로만 채우기 -> 남은 결측치는 train 평균값으로 채우기
+    # valid_x = valid_x.ffill()
+    # valid_x = valid_x.fillna(train_mean_x)
 
-    test_x = test_x.ffill()
-    test_x = test_x.fillna(train_mean_x)
+    # test_x = test_x.ffill()
+    # test_x = test_x.fillna(train_mean_x)
 
-    # y의 결측 처리(있는 경우만. 보통 시계열이면 ffill 권장)
-    train_y = train_y.ffill()
-    valid_y = valid_y.ffill()
-    test_y  = test_y.ffill()
+    # # y의 결측 처리(있는 경우만. 보통 시계열이면 ffill 권장)
+    # train_y = train_y.ffill()
+    # valid_y = valid_y.ffill()
+    # test_y  = test_y.ffill()
 
-    print("결측치 보정 작업 후\n")
-    print("Train Missing Values:\n", train_x.isnull().sum())
-    print("Validation Missing Values:\n", valid_x.isnull().sum())
-    print("Test Missing Values:\n", test_x.isnull().sum())
-    print("\n")
+    # print("결측치 보정 작업 후\n")
+    # print("Train Missing Values:\n", train_x.isnull().sum())
+    # print("Validation Missing Values:\n", valid_x.isnull().sum())
+    # print("Test Missing Values:\n", test_x.isnull().sum())
+    # print("\n")
 
     # 6) 로그 변환
     # train_y_log = np.log1p(train_y.clip(lower=0))
@@ -614,8 +629,7 @@ def data_preprocessing(industry_name: str, data: pd.DataFrame):
     test_preprocessed_y.to_csv(f'data/preprocessed/{industry_name}/{industry_name}_test_preprocessed_y.csv', index=False)
 
     # 스케일러 객체 저장
-    import joblib
-    # joblib.dump(minmax_scaler, f'data/preprocessed/{industry_name}/{industry_name}_minmax_scaler.pkl')
+    # joblib.dump(x_minmax_scaler, f'data/preprocessed/{industry_name}/{industry_name}_minmax_scaler.pkl')
     joblib.dump(x_standard_scaler, f'data/preprocessed/{industry_name}/{industry_name}_standard_scaler.pkl')
     # joblib.dump(y_minmax_scaler, f'data/preprocessed/{industry_name}/{industry_name}_y_minmax_scaler.pkl')
     joblib.dump(y_standard_scaler, f'data/preprocessed/{industry_name}/{industry_name}_y_standard_scaler.pkl')

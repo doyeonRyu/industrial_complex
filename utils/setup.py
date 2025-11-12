@@ -20,16 +20,16 @@ import torch
 def _to_device(batch, device):
     """
     Function: _to_device
-        - DataLoader에서 가져온 배치를 장치에 맞게 변환
+        - DataLoader에서 가져온 배치를 CUDA 장치로 이동
         - 동일한 배치 형태 유지를 위해
     Parameters:
         - batch: tuple
-            - (xb, s_idx, meta, yb) 형태의 배치 데이터
+            - (xb, yb) 형태의 배치 데이터
         - device: torch.device
             - 데이터를 이동시킬 장치 (cuda)
     Returns:
         - tuple
-            - 장치로 이동된 (xb, s_idx, meta, yb)
+            - 장치로 이동된 (xb, yb)
     """
     xb, yb = batch
     xb = xb.to(device, non_blocking=True)

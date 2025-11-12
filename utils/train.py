@@ -38,46 +38,89 @@ def train(loader, model1, model2, criterion, optimizer, device):
     Returns:
         - epoch_loss: float, 전체 배치에 대한(한 epoch 동안의) 평균 손실
     """
+    # 1. 모델을 학습 모드로 전환
     if model1 is not None:
         model1.train()
     model2.train()
-
+    
     total_sum, total_cnt = 0.0, 0 # epoch 동안의 누적 손실과 샘플 수
 
+    # 2. DataLoader에서 배치 단위로 데이터 로드
     for batch in loader:
-        xb, yb = _to_device(batch, device) # 배치를 장치에 맞게 변환
+        xb, yb = _to_device(batch, device) # 배치를 CUDA 장치로 이동
 
+        # CNN 모델이 있는 경우 (하이브리드) 
+        #    입력 형태: [B, F, L] (배치 크기, 피처 수, 시퀀스 길이) -> CNN 출력 형태 [B, L, F]
         if model1 is not None: 
-            # CNN 입력 형태로 변환
-            # [B, L, F] -> [B, F, L]
+            # CNN 입력 형태로 변환 [B, F, L]
+            # [B(배치 사이즈), L(input_window 길이), F(feature 수)] -> [B, F, L]
             if xb.dim() == 3:
-                # L, F 위치 스위치
+                # L, F 위치 변환
                 xb = xb.permute(0, 2, 1) # [B, L, F] -> [B, F, L]
-            elif xb.dim() == 2: # L=1인 경우 [B, F] 형태
-                xb = xb.unsqueeze(-1) # [B, F] -> [B, F, 1]
+            elif xb.dim() == 2: # L=1인 경우(입력 피처가 1개) [B, F] 형태
+                xb = xb.unsqueeze(-1) # [B, F] -> [B, F, 1] # L 차원 추가
             
-            # 1. model1 forward
-            md1_out = model1(xb) # [B, F, L] 형태
-            
-            # 2. model2 forward
-            yhat = model2(md1_out) # [B, output_window] or [B,] 형태
+            # 1) model1 forward 
+            md1_out = model1(xb) # xb 형태: [B, F, L] -> md1_out 형태: [B, L, F]
+            src = md1_out # CNN 출력값을 model2의 입력으로 사용 # 형태 [B, L, F]
         else:
-            yhat = model2(xb)
+            src = xb # CNN이 없는 경우 원본 입력 사용 # 형태 [B, L, F]
 
-        # 타깃 차원 보정 (1D -> 2D) | [B] vs [B,1] 정렬
-        if yb.dim() == 1 and yhat.dim() == 2 and yhat.size(1) == 1:
-            yb = yb.unsqueeze(-1) # (N,) -> (N, 1)
+        # 2) model2 forward
+        # 2-1) encoder-decoder 구조일 때
+        if hasattr(model2, "decoder") or hasattr(model2, "dec_embedding"): # decoder 모듈이 있으면 encoder-decoder 구조
+            # teacher forcing 적용; 
+            if yb.dim() == 3: # [B(배치 크기), T(출력 시퀀스 길이), F(출력 피처 수)]
+                tgt_input = yb[:, :-1, :] # 디코더 입력 (마지막 타임스텝 제외) # 형태: [B, T-1, F]
+                tgt_target = yb[:, 1:, :] # 디코더 타깃 (처음 타임스텝 제외) # 형태: [B, T-1, F]
+            else: # yb.dim() == 2: [B, T] 형태 (출력 피처가 1개)
+                # 디코더 입력/타깃 차원 보정 (2D -> 3D)
+                yb = yb.unsqueeze(-1)
+                tgt_input = yb[:, :-1, :] # 디코더 입력 (마지막 타임스텝 제외) # 형태: [B, T-1, 1]
+                tgt_target = yb[:, 1:, :] # 디코더 타깃 (처음 타임스텝 제외) # 형태: [B, T-1, 1]
+            
+            # src: encoder 입력, tgt_input: decoder 입력
+            # src 형태: [B, L, F], tgt_input 형태: [B, T-1, F]
+            # yhat: decoder 출력 형태: [B, T-1, F]
+            yhat = model2(src, tgt_input) 
 
-        # 3. 손실 계산
-        loss = criterion(yhat, yb)
+            # 타깃 차원 보정 (3D -> 2D) | [B, T-1, F] vs [B, T-1, 1] 정렬
+            if yhat.dim() > tgt_target.dim() and yhat.size(-1) == 1:
+                yhat = yhat.squeeze(-1) # [B, T, 1] -> [B, T]로 변환하여 tgt_target ([B, T])과 맞춤
+            if tgt_target.dim() == 1 and yhat.dim() == 2 and yhat.size(1) == 1:
+                tgt_target = tgt_target.unsqueeze(-1) # (N,) -> (N, 1)
 
-        # 4. 역전파
+            loss = criterion(yhat, tgt_target)
+        
+        # 2-2) encoder-only 구조일 때
+        elif isinstance(model2, torch.nn.TransformerEncoder) or hasattr(model2, "encoder"):
+            # forward(src) 형태
+            yhat = model2(src)
+            # 타깃 차원 보정 (1D -> 2D) | [B] vs [B,1] 정렬
+            if yhat.dim() > yb.dim() and yhat.size(-1) == 1:
+                yhat = yhat.squeeze(-1) # [B, T, 1] -> [B, T]로 변환하여 yb ([B, T])와 맞춤
+            if yb.dim() == 1 and yhat.dim() == 2 and yhat.size(1) == 1:
+                yb = yb.unsqueeze(-1) # (N,) -> (N, 1)
+            loss = criterion(yhat, yb)
+
+        # 2-3) 일반 RNN류 (LSTM, GRU 등)
+        else:
+            yhat = model2(src)
+            # 타깃 차원 보정 (1D -> 2D) | [B] vs [B,1] 정렬
+            if yhat.dim() > yb.dim() and yhat.size(-1) == 1:
+                yhat = yhat.squeeze(-1) # [B, T, 1] -> [B, T]로 변환하여 yb ([B, T])와 맞춤
+            if yb.dim() == 1 and yhat.dim() == 2 and yhat.size(1) == 1:
+                yb = yb.unsqueeze(-1) # (N,) -> (N, 1)
+            loss = criterion(yhat, yb)
+
+        # 3) 역전파
         optimizer.zero_grad(set_to_none=True)
         loss.backward()
         optimizer.step()
 
+        # 4) 배치 손실 누적
         bs = xb.size(0) # 배치 크기
         total_sum += loss.item() * bs # 배치 손실의 합
         total_cnt += bs # 배치 샘플 수 누적
-
+        
     return total_sum / max(total_cnt, 1) # epoch 평균 손실
