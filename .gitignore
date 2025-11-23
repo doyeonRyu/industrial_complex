@@ -1,9 +1,3 @@
 /data/
 __pycache__/
-data_preprocessing.ipynb
 *.ipynb
-diagnosis_plots/
-적용.docx
-tun_model.py
-튜닝 과정_ver_251022.xlsx
-background/

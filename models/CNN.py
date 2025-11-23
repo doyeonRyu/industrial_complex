@@ -1,4 +1,3 @@
-import torch
 import torch.nn as nn
 
 """
@@ -16,7 +15,7 @@ class CNN(nn.Module):
     """
     Class: CNN
         - CNN + 예측 하이브리드 모델을 위한 1-D CNN 모델
-        1) 1-D CNN으로 시계열 특징 추출
+        1) 1-D CNN으로 특징 추출
         2) 예측 모델 입력 형태에 맞게 차원 변환 [B, C_out, L_out] -> [B, L_out, C_out] 
             - 예측 모델 입력 형태: [B, L, F]
                 - L_out = 시퀀스 길이 
@@ -38,7 +37,7 @@ class CNN(nn.Module):
                 dropout=0.0,
                 next_in_features=32, 
                 use_bn=True 
-    ):
+    ) -> None:
         """
         Function: __init__
             - CNN 모델 초기화
@@ -97,8 +96,7 @@ class CNN(nn.Module):
             - x (torch.Tensor): 예측 모델 입력에 맞게 변환된 시퀀스 (B, L_out=1, C_out=F)
                 - B: 배치 크기, L_out: 출력 시퀀스 길이, C_out: 출력 채널 수, F: 예측 모델 입력 피처 수
         """
-        # x: [B, C_in, L_in] (B: 배치 크기, C_in: 입력 채널 수, L_in: 시퀀스 길이)
-
+        
         # 1) Conv 블록 
         x = self.cnn(x) # [B, C_out, L_out]
         x = self.bn(x) # 배치 정규화 [B, C_out, L_out]

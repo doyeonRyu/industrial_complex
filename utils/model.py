@@ -2,12 +2,14 @@ from models.CNN import CNN
 from models.LSTM import LSTM
 from models.Transformer import Transformer_encoder
 from models.Transformer import Transformer
+from models.Informer import Informer
+from models.Autoformer import Autoformer
 import torch
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # CNN 파라미터 설정
-out_channels = 64 # CNN에서 추출할 feature map 수 (입력 feature를 통해 out_channels 수 만큼 새로운 특징 추출)
+out_channels = 32 # 64 # CNN에서 추출할 feature map 수 (입력 feature를 통해 out_channels 수 만큼 새로운 특징 추출)
 kernel_size = 3 # 커널 크기
 stride = 1 # kernel 이동 간격
 dilation = 1 # kernel 사이의 간격
@@ -23,23 +25,34 @@ next_in_features = 32 # LSTM 입력 피처 수 # out_channels에서 fully connec
 use_bn = True # Batch Normalization 사용 여부
 
 # LSTM 파라미터 설정
-hidden_size = 128 # LSTM hidden state 크기
+hidden_size = 64 # 128 # LSTM hidden state 크기
 num_lstm_layers = 1 # LSTM 레이어 수
 lstm_dropout = 0.1 # dropout 비율
 
 # Transformer 파라미터 설정
-d_model = 128
-nhead = 8
-dim_feedforward = 512
+d_model = 64 # 128
+nhead = 4 # 8
+dim_feedforward = 256 # 512
 num_ts_layers = 3
 num_ts_enc_layers = 2
 num_ts_dec_layers = 1
 ts_dropout = 0.1
 
+# Informer 파라미터 설정
+c_out = 1
+factor = 5
+atten = 'prob'
+embed = 'timeF'
+freq = 't'
+activation = 'gelu'
+output_attention = False
+distil = True
+mix = True
+
 # 모델 초기화 함수
-def build_model(model1, model2, train_preprocessed, input_window, output_window, device):
+def initiate_model(model1, model2, train_preprocessed, input_window, output_window, device):
     """
-    Function: build_model
+    Function: initiate_model
         - 하이브리드 or 단일 시계열 예측 모델 초기화
         - model1: CNN 모델 (None 가능)
         - model2: 시계열 데이터 처리 모델 ("LSTM" or "Transformer")
@@ -168,3 +181,151 @@ def build_model(model1, model2, train_preprocessed, input_window, output_window,
             ).to(device)
             print("Transformer: \n", transformer)
             return None, transformer
+
+# 모델 초기화 함수
+def initiate_model_longformer(
+        model1, model2,train_x_enc, train_x_dec,
+        input_window, label_len, output_window,
+        device
+    ):
+    """
+    Function: initiate_model_longformer
+        - logformer 하이브리드 or 단일 시계열 예측 모델 초기화
+            - 일반 시계열 모델과 입력 변수 다르게 처리
+        - model1: CNN 모델 (None 가능)
+        - model2: 시계열 데이터 처리 모델 ("Informer" or "Autoformer")
+    Parameters:
+        - model1: str or None, "CNN" or None
+        - model2: str, "Informer" or "Autoformer"
+        - train_x_enc: torch.Tensor, 인코더 입력 텐서, shape (N, seq_len, F_enc)
+        - train_x_dec: torch.Tensor, 디코더 입력 텐서, shape (N, label_len + pred_len, F_enc)
+        - input_window: int, 인코더 시퀀스 길이
+        - label_len: int, 디코더 라벨 길이
+        - output_window: int, 디코더 예측 길이
+        - device: torch.device, 모델과 데이터를 올릴 디바이스 (cpu or cuda)
+    Returns:
+        - model1, model2: 초기화된 모델 (model1은 None 가능)
+    """
+    if model1 is not None:
+        cnn = CNN(
+            in_channels=train_x_enc.shape[-1],  # CNN 입력 feature 수
+            out_channels=out_channels,
+            kernel_size=kernel_size,
+            stride=stride,
+            dilation=dilation,
+            padding=padding,
+            groups=groups,
+            bias=bias,
+            padding_mode=padding_mode,
+            dropout=cnn_dropout,
+            pool_kernel_size=pool_kernel_size,
+            pool_stride=pool_stride,
+            next_in_features=next_in_features,
+            use_bn=use_bn
+        ).to(device)
+        print(cnn)
+        if model2 == "Informer":
+            informer = Informer(
+                enc_in=next_in_features,
+                dec_in=train_x_dec.shape[-1],
+                c_out=1,
+                seq_len=input_window,
+                label_len=label_len,
+                out_len=output_window,
+                factor=3,
+                d_model=d_model,
+                n_heads=nhead,
+                e_layers=num_ts_enc_layers,
+                d_layers=num_ts_dec_layers,
+                d_ff=dim_feedforward,
+                dropout=ts_dropout,
+                attn='prob',
+                embed='timeF',
+                freq='t',
+                activation='relu',
+                output_attention=False,
+                distil=True,
+                mix=True,
+                device=device
+            ).to(device)
+            print("Informer:", informer)
+            return cnn, informer
+        elif model2 == "Autoformer":
+            autoformer = Autoformer(
+                enc_in=next_in_features,
+                dec_in=train_x_dec.shape[-1],
+                c_out=1,
+                seq_len=input_window,
+                label_len=label_len,
+                pred_len=output_window,
+                factor=5,
+                d_model=d_model,
+                n_heads=nhead,
+                e_layers=num_ts_enc_layers,
+                d_layers=num_ts_dec_layers,
+                d_ff=dim_feedforward,
+                dropout=ts_dropout,
+                embed='timeF',
+                freq='t',
+                activation='relu',
+                output_attention=False,
+                moving_avg=11,
+                device=device
+            ).to(device)
+            print("Autoformer:", autoformer)
+            return cnn, autoformer
+    else:
+        enc_in = train_x_enc.shape[-1] 
+        dec_in = train_x_dec.shape[-1] 
+
+        if model2 == "Informer":
+            informer = Informer(
+                enc_in=enc_in,
+                dec_in=dec_in,
+                c_out=1,
+                seq_len=input_window,
+                label_len=label_len,
+                out_len=output_window,
+                factor=3,
+                d_model=d_model,
+                n_heads=nhead,
+                e_layers=num_ts_enc_layers,
+                d_layers=num_ts_dec_layers,
+                d_ff=dim_feedforward,
+                dropout=ts_dropout,
+                attn='prob',
+                embed='timeF',
+                freq='t',
+                activation='relu',
+                output_attention=False,
+                distil=True,
+                mix=True,
+                device=device
+            ).to(device)
+            print("Informer:", informer)    
+            return None, informer
+        
+        elif model2 == "Autoformer":
+            autoformer = Autoformer(
+                enc_in=enc_in,
+                dec_in=dec_in,
+                c_out=1,
+                seq_len=input_window,
+                label_len=label_len,
+                pred_len=output_window,
+                factor=5,
+                d_model=d_model,
+                n_heads=nhead,
+                e_layers=num_ts_enc_layers,
+                d_layers=num_ts_dec_layers,
+                d_ff=dim_feedforward,
+                dropout=ts_dropout,
+                embed='timeF',
+                freq='t',
+                activation='relu',
+                output_attention=False,
+                moving_avg=11,
+                device=device
+            ).to(device)
+            print("Autoformer:", autoformer)
+            return None, autoformer

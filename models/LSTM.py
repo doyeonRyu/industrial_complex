@@ -1,4 +1,3 @@
-# LSTM model | Basic version | for time series forecasting
 import torch
 import torch.nn as nn
 
@@ -6,10 +5,10 @@ import torch.nn as nn
 ==============================================================================
 LSTM 모델
 - 입력 형태 (최종 전처리 형태): 
-    - (B, L, F)
+    - [B, L, F]
         - B: 배치 크기 | L: 시퀀스 길이 | F: 입력 피처 수
 - 출력 형태 (최종 예측 형태):
-    - (B, output_size)
+    - [B, output_size]
         - B: 배치 크기 | output_size: 예측 변수 수
 ==============================================================================
 """
@@ -18,15 +17,7 @@ class LSTM(nn.Module):
     Class: LSTM
         - 기본적인 LSTM 모델 구현
     """
-    def __init__(
-        self,
-        input_size,
-        hidden_size,
-        output_size, 
-        num_layers,
-        bidirectional=False,
-        dropout=0.1,
-    ):
+    def __init__(self, input_size, hidden_size, output_size, num_layers, bidirectional=False, dropout=0.1) -> None:
         """
         Function: __init__
             - LSTM 모델 초기화
@@ -70,15 +61,15 @@ class LSTM(nn.Module):
         """
         # 3) 입력 x를 LSTM에 통과
         out, (h_n, c_n) = self.lstm(x) 
-        #    x: (B, L, input_size)
-        #    out: 전체 시퀀스 출력, (B, L, H * num_directions)
-        #    h_n: 마지막 hidden states, (num_layers * num_directions, B, H)
-        #    c_n: 마지막 cell states, (num_layers * num_directions, B, H)
+        # x: [B, L, input_size]
+        # out: 전체 시퀀스 출력, [B, L, H * num_directions]
+        # h_n: 마지막 hidden states, [num_layers * num_directions, B, H]
+        # c_n: 마지막 cell states, [num_layers * num_directions, B, H]
         
         # 4) 마지막 레이어의 hidden state만 추출
-        h_last = h_n[-1] # (B, H * num_directions)
+        h_last = h_n[-1] # [B, H * num_directions]
 
         # 5) FC Head 통과 후 최종 출력
-        y_hat = self.fc(h_last) # (B, output_size)
+        y_hat = self.fc(h_last) # [B, output_size]
 
-        return y_hat # (B, output_size) 
+        return y_hat # [B, output_size] 

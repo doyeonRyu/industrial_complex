@@ -4,26 +4,32 @@ File: n01_load_data.py
 Project: 산업 단지 전력 사용량 예측 모델
 Author: 유도연
 Created Date: 2025-10-13
-Last Modified: 2025-10-14
+Last Modified: 2025-11-19
 
 Description: 데이터 로드 및 병합 스크립트
     - 한 파일의 여러 테이블에서 15분 단위 시계열 데이터를 추출해 병합
-    - 여러 파일을 순회하며 통합하고 CSV로 저장
+    - 월 단위 파일을 순회하며 하나의 데이터로 통합하고 CSV로 저장
     - 한 산업체씩 실행
 
 Note: 산업체명 변경할 경우
-    - **base_dir**과 **output_csv**만 바꿔서 그대로 사용 가능
-    - 추가로 기간/키워드/확장자/정규식 등의 파라미터도 필요 시 조정
+    - 코드 실행 시 --industry name {산업체명} 형태로 인자 전달해야 함
+        - 실행 예시: python n01_load_data.py --industry_name 광명금속
+    - 추가로 기간/키워드/확장자/정규식 등의 파라미터도 필요 시 조정 가능
 ==============================================================================
 """
 
 import os
 import re
 from datetime import datetime, timedelta
-from tracemalloc import start
+import argparse
 import pandas as pd
 
-
+# 명령행 인자 파서 설정 함수
+def parse_args():
+    parser = argparse.ArgumentParser(description="전력사용량 15분 데이터 수집")
+    parser.add_argument("--industry_name", type=str, default=None, help="결과 파일명에 사용할 산업체 이름")
+    return parser.parse_args()
+    
 # 컬럼명 조정 함수
 def make_new_cols_from_pairs(pairs):
     """
@@ -69,14 +75,18 @@ def build_month_list(start_ym, end_ym):
 
     # while 문: (y,m)이 종료 지점을 지날 때까지
     while (y < ey) or (y == ey and m <= em):
+
         # "YYYY.MM" 형식으로 추가
         months.append(f"{y}.{m:02d}")
+        
         # 다음 달로 이동
         m += 1
+        
         # 13월이면 다음 해로 넘어감
         if m == 13:
             m = 1
             y += 1
+    
     # 최종 리스트 반환
     return months
 
@@ -90,7 +100,7 @@ def load_data(file_path, new_cols, date_str):
         - 파일명에서 추출한 날짜 문자열(YYYYMMDD)을 바탕으로 datetime 열 생성
     Parameters:
         - file_path: str
-            - 읽을 파일 경로 (예: "C:/.../data/raw/9.메인텍 2공장/2024.08/전기사용량_시간대별(20240801).xls")
+            - 읽을 파일 경로 (예: "C:/.../data/raw/9.광명금속/2024.08/전기사용량_시간대별(20240801).xls")
         - new_cols: List[str]
             - 최종 열 이름 리스트 (예: ['시', '사용량 (kWh)', ..., '역률 (%)_진상'])
         - date_str: str
@@ -104,7 +114,7 @@ def load_data(file_path, new_cols, date_str):
     tables = pd.read_html(file_path, encoding='utf-8') 
 
     # 여러 테이블 중 가장 큰(행 수가 많은) 테이블 선택
-    #    시계열 데이터이므로 가장 클 것으로 가정
+    #    시계열 데이터이므로 가장 클 것으로 가정 (실제 파일 확인 후 진행함)
     df = max(tables, key=lambda x: len(x))
 
     # "HH:MM" 형식 판별 정규식
@@ -138,7 +148,7 @@ def load_data(file_path, new_cols, date_str):
         right_time_mask = right_block.iloc[:, 0].apply(is_time_format)
         right_data = right_block[right_time_mask]
 
-        # 오른쪽 블록의 컬럼을 왼쪽과 동일하게 맞춤 (열 개수가 일치할 때로 가정)
+        # 오른쪽 블록의 컬럼을 왼쪽과 동일하게 맞춤 (열 개수가 일치)
         right_data.columns = left_data.columns
         # 위아래로 결합
         time_data = pd.concat([left_data, right_data], ignore_index=True)
@@ -150,26 +160,23 @@ def load_data(file_path, new_cols, date_str):
     # 00:00 행 제외 (00:00 x 다음 24:00을 가짐)
     time_data = time_data[time_data.iloc[:, 0] != '00:00']
 
-    # 최종 컬럼명을 먼저 적용해 MultiIndex 관련 경고 방지
     time_data.columns = new_cols
 
-    # 인덱스 평탄화
+    # 인덱스 정렬
     time_data = time_data.reset_index(drop=True)
 
     # 정렬용 시각 컬럼 시리즈 생성
     sort_series = pd.to_datetime(time_data['시'], format='%H:%M', errors='coerce')
-    # '24:00'은 하루 끝으로 별도 처리 (1900-01-02 00:00:00을 정렬 키로 사용)
     sort_series = sort_series.mask(time_data['시'] == '24:00', pd.to_datetime('1900-01-02 00:00:00'))
-
-    # 정렬용 컬럼 추가
     time_data['_sort_time'] = sort_series
+
     # 시간 오름차순 정렬
     time_data = time_data.sort_values('_sort_time')
-    # 정렬용 보조 컬럼 제거 (columns 인자로 명시)
     time_data = time_data.drop(columns=['_sort_time'])
 
     # 파일명에서 추출한 날짜 문자열을 date로 변환
     date_base = datetime.strptime(date_str, "%Y%m%d").date()
+    
     # datetime 결과를 담을 리스트
     datetimes = []
 
@@ -181,7 +188,6 @@ def load_data(file_path, new_cols, date_str):
         else:
             # 일반 "HH:MM" 시각은 같은 날짜에 결합
             dt = datetime.combine(date_base, datetime.strptime(t, '%H:%M').time())
-        # 리스트에 추가
         datetimes.append(dt)
 
     # 가장 앞에 datetime 열 삽입
@@ -201,13 +207,14 @@ def collect_quarterhour_data(
     file_ext=".xls",
     date_regex=r"\((\d{8})\)",
     cols_pairs=None,
+    industry_name=None,
     output_csv="통합_15분단위_데이터.csv",
     output_encoding="utf-8-sig"
-):
+) -> pd.DataFrame:
     """
     Function: collect_quarterhour_data
         - 특정 산업체 폴더(base_dir) 아래에서 월별 하위폴더(YYYY.MM)를 순회하며,
-          파일명에 날짜가 포함된 원시 파일을 읽어 15분 단위 시계열로 통합하고 CSV로 저장
+            파일명에 날짜가 포함된 원시 파일을 읽어 15분 단위 시계열로 통합하고 CSV로 저장
     Parameters:
         - base_dir: str
             - 산업체 루트 경로 (예: "C:/.../data/raw/9.메인텍 2공장")
@@ -220,7 +227,7 @@ def collect_quarterhour_data(
         - file_ext: str
             - 파일 확장자 (예: ".xls")
         - date_regex: str
-            - 파일명에서 날짜(YYYYMMDD) 추출 정규식 (예: r"\((\d{8})\)")
+            - 파일명에서 날짜(YYYYMMDD) 추출 정규식 
         - cols_pairs: List[Tuple[str,str]] or None
             - 열 이름 쌍 (None이면 기본값 사용)
         - output_csv: str
@@ -294,14 +301,13 @@ def collect_quarterhour_data(
         # datetime 기준 정렬
         final_df = final_df.sort_values('datetime').reset_index(drop=True)
 
-        # 진행 결과 요약 출력
+        # 진행 결과 출력
         print("\n" + "=" * 60)
-        print("데이터 통합 완료")
+        print(f"{industry_name} 데이터 통합 완료")
         print("=" * 60)
-        print(f"✓ 성공: {success_count}개 파일")
-        print(f"✗ 오류: {error_count}개 파일")
-        # 24:00 포함 파일은 97행일 수 있으므로 단순 96*n 가정은 참고치
-        print(f"총 {len(final_df):,}개 행 (참고치: {success_count} × 96 ≈ {success_count * 96:,}개)")
+        print(f"성공: {success_count}개 파일")
+        print(f"오류: {error_count}개 파일")
+        print(f"총 {len(final_df):,}개 행")
         print(f"\n기간: {final_df['datetime'].min()} ~ {final_df['datetime'].max()}")
 
         # CSV 저장
@@ -328,13 +334,20 @@ def collect_quarterhour_data(
 # 메인 실행 블록
 if __name__ == "__main__":
     """
-    - 다른 산업체에도 **base_dir**와 **output_csv**만 바꿔서 그대로 사용 가능
-    - 기간/키워드/확장자/정규식 등의 파라미터도 필요 시 조정
+    - 코드 실행 시 --industry name {산업체명} 형태로 인자 전달해야 함 (실행 예시: python n01_load_data.py --industry_name 광명금속)
+    - 기간/키워드/확장자/정규식 등의 파라미터도 필요 시 조정 가능
     """
+    args = parse_args()
+
+    industry_name = args.industry_name
+    if industry_name is None:
+        industry_name = "광명금속" # 기본값 설정
+
     # 산업체 루트 경로
-    base_dir = "C:/Users/ryudo/Desktop/forecasting_models/industrial_complex/data/raw/9.메인텍 2공장"
+    base_dir = f"C:/Users/ryudo/Desktop/forecasting_models/industrial_complex/data/raw/9.{industry_name}"
     start_ym = "2024.08"
     end_ym = "2025.09"
+
     # 실행
     _ = collect_quarterhour_data(
         base_dir=base_dir,
@@ -353,6 +366,7 @@ if __name__ == "__main__":
             ('역률 (%)', '지상'),
             ('역률 (%)', '진상')
         ],
-        output_csv=f"메인텍 2공장_시계열_데이터({start_ym}_{end_ym}).csv",
+        industry_name=industry_name,
+        output_csv=f"{industry_name}_시계열_데이터({start_ym}_{end_ym}).csv",
         output_encoding="utf-8-sig"
     )
