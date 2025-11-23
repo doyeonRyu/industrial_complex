@@ -217,7 +217,7 @@ if __name__ == "__main__":
     batch_size = 512
     criterion = nn.HuberLoss(delta=1.0, reduction="mean") # Huber Loss
     optimizer_type = "Adam" # "Adam", "SGD", "RMSprop"
-    threshold_value = 0.9 # 상위 10% # 피크 구간 가중치 부여 임계값 (0 ~ 1 사이 값, 0이면 피크 가중치 없음)
+    threshold_value = 0 # 상위 10% # 피크 구간 가중치 부여 임계값 (0 ~ 1 사이 값, 0이면 피크 가중치 없음)
 
     train_model(path, input_window, label_len, output_window, 
                 criterion, optimizer_type, num_epochs, batch_size,

@@ -51,12 +51,12 @@ def run_evaluation_and_visualization(industry_name, model1, model2):
     output_window = 32
     threshold_value = 0.1 # 0 근처 값들에 대한 MAPE, PAPE 계산 시 필터링 임계값
     if model1 is not None:
-        model1_path = f"results/{industry_name}/{industry_name}_hybrid_{model1}_with_{model2}_({input_window},{output_window})_peak_weight.pth"
-        model2_path = f"results/{industry_name}/{industry_name}_hybrid_{model2}_with_{model1}_({input_window},{output_window})_peak_weight.pth"
+        model1_path = f"results/{industry_name}/{industry_name}_hybrid_{model1}_with_{model2}_({input_window},{output_window}).pth"
+        model2_path = f"results/{industry_name}/{industry_name}_hybrid_{model2}_with_{model1}_({input_window},{output_window}).pth"
         print(f"Evaluating Hybrid Model: {model1_path} + {model2_path}")
     else:
         model1_path = None
-        model2_path = f"results/{industry_name}/{industry_name}_{model2}_({input_window},{output_window})_peak_weight.pth"
+        model2_path = f"results/{industry_name}/{industry_name}_{model2}_({input_window},{output_window}).pth"
         print(f"Evaluating {model2_path}")
 
     batch_size = 512
@@ -125,11 +125,12 @@ def run_evaluation_and_visualization(industry_name, model1, model2):
     # 전체 예측 결과 엑셀 저장
     data_origin = valid_origin if data_type == "valid" else test_origin
     if model1_path is not None:
-        save_first_path = f"results/{industry_name}/{industry_name}_{data_type}_hybrid_{model1.__class__.__name__}_with_{model2.__class__.__name__}_({input_window},{output_window})_peak_weight_first_window.xlsx"
-        save_full_path = f"results/{industry_name}/{industry_name}_{data_type}_hybrid_{model1.__class__.__name__}_with_{model2.__class__.__name__}_({input_window},{output_window})_peak_weight_full_series.xlsx"
+        save_first_path = f"results/{industry_name}/{industry_name}_{data_type}_hybrid_{model1.__class__.__name__}_with_{model2.__class__.__name__}_({input_window},{output_window})_first_window.xlsx"
+        save_full_path = f"results/{industry_name}/{industry_name}_{data_type}_hybrid_{model1.__class__.__name__}_with_{model2.__class__.__name__}_({input_window},{output_window})_full_series.xlsx"
     else:
-        save_first_path = f"results/{industry_name}/{industry_name}_{data_type}_{model2.__class__.__name__}_({input_window},{output_window})_peak_weight_first_window.xlsx"
-        save_full_path = f"results/{industry_name}/{industry_name}_{data_type}_{model2.__class__.__name__}_({input_window},{output_window})_peak_weight_full_series.xlsx"
+        save_first_path = f"results/{industry_name}/{industry_name}_{data_type}_{model2.__class__.__name__}_({input_window},{output_window})_first_window.xlsx"
+        save_full_path = f"results/{industry_name}/{industry_name}_{data_type}_{model2.__class__.__name__}_({input_window},{output_window})_full_series.xlsx"
+
     save_predictions_to_excel_longformer(
         model1_path, model2_path, model1, model2,
         save_first_path, save_full_path,
@@ -163,7 +164,7 @@ def run_evaluation_and_visualization(industry_name, model1, model2):
         logged=True,
         industry_name=industry_name,
         datatype=data_type,
-        peak_weight=True
+        peak_weight=False
     )
     
     # 원하는 날짜 범위 시계열 예측 결과 플롯 저장
